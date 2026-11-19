@@ -13,23 +13,38 @@ async function request(path, { skipSession = false, ...options } = {}, responseT
     if (!response.ok) throw new Error('เซสชันหมดอายุ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่');
     setSession(data);
   }
+  const integration = path.startsWith('/integration/flowaccount/');
   const response = await fetch(path.startsWith('/integration/') ? path : url + path, { ...options, headers: { apikey: key, ...(!skipSession && session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}), 'Content-Type': 'application/json', Prefer: 'return=representation', ...options.headers } });
-  if (response.ok && responseType === "text") return response.text();
-  const data = response.status === 204 ? null : await response.json().catch(() => ({}));
+  const unavailableMessage = 'เว็บนี้ยังเชื่อมเซิร์ฟเวอร์ FlowAccount ไม่ได้ กรุณาติดต่อผู้ดูแล';
+  if (response.ok && responseType === "text") {
+    const html = await response.text();
+    if (integration && !html.includes('<script id="dataset" type="application/json">')) {
+      throw new Error(unavailableMessage);
+    }
+    return html;
+  }
+
+  const data = response.status === 204 ? null : await response.json().catch(() => null);
+  if (integration && response.status !== 204 && (data === null || typeof data !== 'object')) {
+    if (response.ok || response.status === 404 || response.status >= 500) {
+      throw new Error(unavailableMessage);
+    }
+  }
   if (!response.ok) {
-    if (response.status === 429 && Number.isFinite(data.retryAfter)) {
-      const error = new Error(data.message);
-      error.retryAfter = data.retryAfter;
+    const details = data ?? {};
+    if (response.status === 429 && Number.isFinite(details.retryAfter)) {
+      const error = new Error(details.message);
+      error.retryAfter = details.retryAfter;
       throw error;
     }
-    if ((['PGRST204','42703'].includes(data.code)&&/membership_config|redemption_d|redemption_b|win_rate/.test(data.message||'')) || (data.code==='PGRST202'&&/tc_record_sale|tc_save_reward_formulas/.test(path))) throw new Error('กรุณารัน supabase/007_reward_multipliers.sql เพื่อใช้ตัวคูณ B สำหรับแลกรางวัล');
-    if (['PGRST204','42703'].includes(data.code)&&/tc_base|tc_indicator/.test(data.message||'')) throw new Error('กรุณารัน supabase/005_reward_tc_indicators.sql ก่อนบันทึก TC และตัวคูณรางวัล');
-    if (data.code === 'PGRST205' || (data.code === '42703' && data.message?.includes('id'))) throw new Error('ยังไม่ได้ติดตั้งโครงสร้าง TeraCoin ใน Supabase โปรเจกต์นี้ กรุณารันไฟล์ supabase/001_teracoin.sql ก่อน');
-    if (data.code === 'PGRST202') throw new Error('กรุณารันไฟล์ supabase/002_customer_pricing.sql เพื่อเปิดใช้การอนุมัติระดับราคา');
-    if (data.code === '42501') throw new Error('บัญชีนี้ยังไม่มีสิทธิ์อ่านข้อมูล กรุณาเข้าสู่ระบบจริงและให้ Admin ตรวจสิทธิ์ของบัญชี');
-    const retry=String(data.message||data.error_description||data.msg||'').match(/after (\d+) seconds/i);
+    if ((['PGRST204','42703'].includes(details.code)&&/membership_config|redemption_d|redemption_b|win_rate/.test(details.message||'')) || (details.code==='PGRST202'&&/tc_record_sale|tc_save_reward_formulas/.test(path))) throw new Error('กรุณารัน supabase/007_reward_multipliers.sql เพื่อใช้ตัวคูณ B สำหรับแลกรางวัล');
+    if (['PGRST204','42703'].includes(details.code)&&/tc_base|tc_indicator/.test(details.message||'')) throw new Error('กรุณารัน supabase/005_reward_tc_indicators.sql ก่อนบันทึก TC และตัวคูณรางวัล');
+    if (details.code === 'PGRST205' || (details.code === '42703' && details.message?.includes('id'))) throw new Error('ยังไม่ได้ติดตั้งโครงสร้าง TeraCoin ใน Supabase โปรเจกต์นี้ กรุณารันไฟล์ supabase/001_teracoin.sql ก่อน');
+    if (details.code === 'PGRST202') throw new Error('กรุณารันไฟล์ supabase/002_customer_pricing.sql เพื่อเปิดใช้การอนุมัติระดับราคา');
+    if (details.code === '42501') throw new Error('บัญชีนี้ยังไม่มีสิทธิ์อ่านข้อมูล กรุณาเข้าสู่ระบบจริงและให้ Admin ตรวจสิทธิ์ของบัญชี');
+    const retry=String(details.message||details.error_description||details.msg||'').match(/after (\d+) seconds/i);
     if(retry)throw new Error(`กรุณารอ ${retry[1]} วินาทีก่อนลองสมัครอีกครั้ง`);
-    const error = new Error(data.message || data.error_description || data.msg || 'ไม่สามารถทำรายการได้');
+    const error = new Error(details.message || details.error_description || details.msg || 'ไม่สามารถทำรายการได้');
     error.status = response.status;
     throw error;
   }
