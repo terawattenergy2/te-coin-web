@@ -7,6 +7,7 @@ export default function SalesReview({ api }) {
   const [result, setResult] = useState(null);
   const [job, setJob] = useState({ state: 'idle' });
   const [starting, setStarting] = useState(false);
+  const [refreshError, setRefreshError] = useState(null);
   const lastFinished = useRef();
   const startRequest = useRef();
   const refreshing = starting || job.state === 'running';
@@ -57,6 +58,7 @@ export default function SalesReview({ api }) {
     if (startRequest.current) return;
     const controller = new AbortController();
     startRequest.current = controller;
+    setRefreshError(null);
     setStarting(true);
     try {
       const nextJob = await api.salesReviewRefresh('POST', controller.signal);
@@ -65,7 +67,7 @@ export default function SalesReview({ api }) {
         if (nextJob.state === 'succeeded') setRevision(value => value + 1);
       }
     } catch (error) {
-      if (!controller.signal.aborted) setJob({ state: 'failed', message: error.message });
+      if (!controller.signal.aborted) setRefreshError(error.message);
     } finally {
       startRequest.current = null;
       if (!controller.signal.aborted) setStarting(false);
@@ -80,11 +82,11 @@ export default function SalesReview({ api }) {
         </button>
         <span role="status">
           {refreshing && 'กำลังดึงใบกำกับภาษีจาก FlowAccount รายงานชุดล่าสุดยังเปิดดูได้'}
-          {!refreshing && job.state === 'failed' && (job.message || 'ดึงข้อมูลไม่สำเร็จ')}
-          {!refreshing && job.state === 'succeeded' && 'ดึงข้อมูลล่าสุดสำเร็จ'}
+          {!refreshing && (refreshError || job.state === 'failed') &&
+            (refreshError || job.message || 'ดึงข้อมูลไม่สำเร็จ')}
+          {!refreshing && !refreshError && job.state === 'succeeded' && 'ดึงข้อมูลล่าสุดสำเร็จ'}
           {job.state === 'disabled' && 'การดึงข้อมูลล่าสุดเปิดใช้กับ FlowAccount Production'}
-          {job.state === 'idle' && !refreshing && 'กดดึงข้อมูลล่าสุดเพื่อโหลดใบกำกับภาษี'}
-
+          {job.state === 'idle' && !refreshing && !refreshError && 'กดดึงข้อมูลล่าสุดเพื่อโหลดใบกำกับภาษี'}
         </span>
         <span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. (เวลาไทย)</span>
       </div>
