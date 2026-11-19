@@ -10,10 +10,12 @@ const {normalizeContact,matchContacts}=require('../src/epcMatch.js');
 const {previewFlowSale}=require('../src/flowaccountCoin.js');
 const config={...process.env};
 try{for(const line of (await readFile(new URL('../.env.flowaccount',import.meta.url),'utf8')).split('\n')){if(!line.trim()||line.trim().startsWith('#'))continue;const i=line.indexOf('=');if(i>0)config[line.slice(0,i).trim()]=line.slice(i+1).trim().replace(/^(['"])(.*)\1$/,'$2');}}catch(e){if(e.code!=='ENOENT')throw e;}
-const environment=config.FLOWACCOUNT_ENVIRONMENT||'test';
+const hosted = process.env.VERCEL === '1';
+const environment=config.FLOWACCOUNT_ENVIRONMENT||(hosted?'v1':'test');
 const source=config.FLOWACCOUNT_ACCOUNT_ID||'';
 const salesDocumentTypes = new Set(['quotations', 'billing-notes', 'tax-invoices', 'receipts']);
-const sb=(config.SUPABASE_URL||'').replace(/\/$/,'');
+const sb=(config.SUPABASE_URL||config.REACT_APP_SUPABASE_URL||'').replace(/\/$/,'');
+config.SUPABASE_PUBLISHABLE_KEY ||= config.REACT_APP_SUPABASE_PUBLISHABLE_KEY;
 let token=config.FLOWACCOUNT_BEARER_TOKEN||'',expires=0;
 let flowRetryAt = 0;
 const salesCache = new Map();
@@ -276,12 +278,30 @@ function companyFields(contact, detail) {
   code: String(detail.contactCode || contact.id),
  };
 }
-async function body(req){let s='';for await(const part of req){s+=part;if(s.length>200000)throw Error('Request too large');}return JSON.parse(s||'{}');}
+async function body(req){
+ let data = req.body;
+ if (data == null) {
+  data = '';
+  for await (const part of req) {
+   data += part;
+   if (data.length > 200000) throw Error('Request too large');
+  }
+ }
+ const raw = typeof data === 'string' || Buffer.isBuffer(data) ? String(data) : JSON.stringify(data);
+ if (raw.length > 200000) throw Error('Request too large');
+ return JSON.parse(raw || '{}');
+}
 export async function handler(req,res){
  res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');
  const reply=(status,data)=>{res.writeHead(status);res.end(JSON.stringify(data));};
- if(!['127.0.0.1:4319','localhost:4319'].includes(req.headers.host))return reply(403,{message:'Invalid host'});
- if(req.headers.origin&&!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(req.headers.origin))return reply(403,{message:'Invalid origin'});
+ const host = req.headers.host;
+ const origin = req.headers.origin;
+ if (hosted) {
+  if (origin && origin !== 'https://' + host) return reply(403, {message: 'Invalid origin'});
+ } else {
+  if (!['127.0.0.1:4319','localhost:4319'].includes(host)) return reply(403,{message:'Invalid host'});
+  if (origin && !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return reply(403,{message:'Invalid origin'});
+ }
  const u=new URL(req.url,'http://localhost');const route=u.pathname.replace('/integration/flowaccount','');
  if(!u.pathname.startsWith('/integration/flowaccount/'))return reply(404,{message:'Not found'});
  if(environment !== 'v1' || !source || !sb || !config.SUPABASE_PUBLISHABLE_KEY) return reply(503,{message:'TeraCoin ต้องเชื่อม FlowAccount Production ใน .env.flowaccount'});
@@ -370,6 +390,10 @@ export async function handler(req,res){
    const matches = verified.filter(Boolean);
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
+  }
+  if (hosted && (route === '/sales-review' || route === '/sales-review/refresh')) {
+   if (route.endsWith('/refresh') && req.method === 'GET') return reply(200, {state: 'disabled'});
+   return reply(503, {message: 'รายงานยอดขายแบบรวมยังต้องใช้เซิร์ฟเวอร์และพื้นที่เก็บรายงานถาวร ดูใบกำกับภาษีจริงได้ในเมนูเอกสารขาย'});
   }
   if (route === '/sales-review/refresh') {
    if (req.method === 'GET') return reply(200, reviewSync.status());
