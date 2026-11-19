@@ -1,0 +1,4 @@
+import React from 'react';
+export default function CustomerCatalog({products,tier,loading,onRefresh}) {
+ return <section className="panel"><div className="section-title"><h2>สินค้าและราคาของคุณ</h2><button disabled={loading} onClick={onRefresh}>รีเฟรชข้อมูล</button></div>{!tier?<div className="notice">สมัครสมาชิกสำเร็จแล้ว • รอ Admin อนุมัติระดับราคาซื้อสินค้า เมื่อได้รับสิทธิ์แล้วกดรีเฟรชข้อมูลได้เลย</div>:<><p className="muted">ระดับราคาที่ได้รับ: {tier} • {products.length} สินค้า • ราคาไม่รวม VAT</p><div className="customer-products">{products.map(p=><article className="panel" key={p.id}><div className="eyebrow">{p.main} / {p.product}</div><h3>{p.model}</h3><strong>{Number(p.unit_price).toLocaleString('th-TH',{minimumFractionDigits:2})} บาท</strong><p className="muted">คงเหลือ {p.qty} ชิ้น</p></article>)}</div>{!products.length&&<div className="empty">ยังไม่มีสินค้าที่เปิดใช้งานและมีราคาในระดับนี้</div>}</>}</section>;
+}

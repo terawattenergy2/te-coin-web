@@ -1,0 +1,30 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import App from './App';
+test('customer demo can see rewards but cannot access staff pages', () => {
+ render(<App />);fireEvent.click(screen.getByText('ทดลองหน้าจอ (ข้อมูลตัวอย่าง)'));fireEvent.click(screen.getByRole('button',{name:'customer'}));
+ expect(screen.getByText('TeraCoin ของคุณ')).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:/สินค้าและราคา/})).toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:/ตั้งค่าระบบ/})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:/แลกรางวัล$/}));
+ expect(screen.getByText('55,000')).toBeInTheDocument();
+});
+test('admin has configuration and product controls while viewer does not', () => {
+ const {unmount}=render(<App />);fireEvent.click(screen.getByText('ทดลองหน้าจอ (ข้อมูลตัวอย่าง)'));fireEvent.click(screen.getByRole('button',{name:'admin'}));
+ fireEvent.click(screen.getByRole('button',{name:'จัดการระบบ'}));
+ fireEvent.click(screen.getByRole('button',{name:/ตั้งค่าระบบ/}));
+ expect(screen.getByLabelText('อัตราสำรอง Liability (บาท / TC)')).toHaveValue(0.6);
+ const accrual = screen.getByRole('heading', {name:'ตั้งค่าการสะสมและสำรองแต้ม'});
+ expect(accrual).toBeVisible();
+ expect(screen.queryByRole('heading', {name:'กำหนดสูตรการคำนวณทั้งหมด'})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button', {name:'สูตรการคำนวณ'}));
+ expect(screen.getByRole('heading', {name:'กำหนดสูตรการคำนวณทั้งหมด'})).toBeVisible();
+ expect(accrual).not.toBeVisible();
+ fireEvent.change(screen.getByLabelText('จำนวนในรายการขาย'), {target:{value:'5'}});
+ fireEvent.click(screen.getByRole('button', {name:'การสะสมและสำรองแต้ม'}));
+ expect(accrual).toBeVisible();
+ fireEvent.click(screen.getByRole('button', {name:'สูตรการคำนวณ'}));
+ expect(screen.getByLabelText('จำนวนในรายการขาย')).toHaveValue(5);
+ unmount();render(<App />);fireEvent.click(screen.getByText('ทดลองหน้าจอ (ข้อมูลตัวอย่าง)'));fireEvent.click(screen.getByRole('button',{name:'viewer'}));
+ expect(screen.getByRole('button',{name:/สินค้าและราคา/})).toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:/ตั้งค่าระบบ/})).not.toBeInTheDocument();
+});

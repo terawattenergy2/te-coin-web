@@ -1,0 +1,56 @@
+:root { --ink: #172a40; --muted: #52677e; --teal: #1755a3; --line: #dce5ee; --bg: #f5f8fb; }
+header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  column-gap: 20px;
+  background: #eaf4fd;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding: 8px max(16px, calc((100vw - 1420px) / 2));
+}
+header > :is(.eyebrow, h1) { display: none; }
+header p { color: var(--muted); margin: 0; }
+main { padding-top: 12px; }
+main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
+.tools { margin-bottom: 10px; }
+.card, .metric { border-color: var(--line); }
+.tools #exportExcel { margin-inline-start: auto; border-color: #bad5ed; color: #1755a3; background: #eaf4fd; }
+#exportStatus:empty { display: none; }
+#exportStatus { margin: 0 0 14px; color: var(--muted); }
+
+.card > [hidden] { display: none !important; }
+.product-analysis h2 { margin: 14px 0 4px; }
+.product-analysis > label { max-width: 580px; }
+#analysisLeader { margin: 14px 0 10px; color: #154780; font-weight: 700; }
+.analysis-chart { display: grid; gap: 12px; list-style: none; padding: 0; margin: 0 0 24px; }
+.analysis-chart details { border: 1px solid var(--line); border-radius: 10px; }
+.analysis-chart summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.analysis-chart summary::-webkit-details-marker { display: none; }
+.analysis-chart summary::before { content: "▸"; color: #1755a3; }
+.analysis-chart details[open] summary::before { content: "▾"; }
+.analysis-chart summary > span { margin-inline-start: auto; }
+.analysis-chart summary .analysis-track { flex-basis: 100%; }
+.analysis-seller-detail { padding: 0 14px 12px; }
+.analysis-seller-products td:first-child { white-space: normal; min-width: 180px; }
+.analysis-chart li span { font-variant-numeric: tabular-nums; }
+.analysis-track { height: 9px; margin-top: 4px; background: #eaf1f7; border-radius: 999px; }
+.analysis-track span { display: block; height: 100%; background: #2676c6; border-radius: inherit; }
+
+.analysis-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 10px 14px;
+  margin: 12px 0 8px;
+}
+.analysis-filters > label,
+.analysis-filters :is(input, select) { min-width: 0; }
+#analysisSearchStatus { margin: 6px 0; }
+#analysisSearchStatus:empty { display: none; }

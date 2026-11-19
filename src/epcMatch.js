@@ -1,0 +1,3 @@
+function normalizeContact(c){const branchCode=String(c.contactBranchCode||'').trim();const branch=branchCode?/^\d{1,5}$/.test(branchCode)?branchCode.padStart(5,'0'):null:/^(สำนักงานใหญ่|head\s*office|main\s*branch)?$/i.test(String(c.contactBranch||'').trim())?'00000':null;return {id:String(c.id??c.contactId??''),name:String(c.contactName||''),tax:String(c.contactTaxId||'').replace(/[\s-]/g,''),branch};}
+function matchContacts(request,contacts){return contacts.map(normalizeContact).filter(c=>c.id&&c.tax===request.tax_id&&c.branch===request.branch_code);}
+module.exports={normalizeContact,matchContacts};

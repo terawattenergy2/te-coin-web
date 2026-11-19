@@ -1,0 +1,12 @@
+import {PGlite}from'@electric-sql/pglite';import{readFile}from'node:fs/promises';import assert from'node:assert/strict';
+const root=new URL('../',import.meta.url);
+for(const with005 of[false,true]){const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;`);
+for(const file of['001_teracoin.sql','002_customer_pricing.sql','004_configurable_formulas.sql',...(with005?['005_reward_tc_indicators.sql']:[])])await db.exec((await readFile(new URL(file,root),'utf8')).replace('create extension if not exists pgcrypto;',''));
+const a='11111111-1111-4111-8111-111111111111',c='22222222-2222-4222-8222-222222222222';await db.query("insert into auth.users(id,email) values($1,'admin@example.test'),($2,'customer@example.test')",[a,c]);await db.query("update tc_profiles set role='admin' where id=$1",[a]);await db.query('update tera_coin_customer set total_earn=10000 where auth_user_id=$1',[c]);
+const s=(await db.query('select * from tc_settings')).rows[0],rules=structuredClone(s.formulas);rules.reward_tc_2={op:'ceil',args:[{op:'mul',args:[{var:'value_baht'},{value:'1.500000000000'}]}]};
+await db.exec(`set role authenticated;set request.jwt.claim.sub='${a}'`);const revision=(await db.query('select tc_save_formulas($1,$2) as v',[JSON.stringify(rules),s.formula_revision])).rows[0].v;assert.equal(Number(revision),Number(s.formula_revision)+1);
+const saved=(await db.query('select formulas from tc_settings')).rows[0].formulas;assert.deepEqual(saved.reward_tc_2,rules.reward_tc_2);assert.deepEqual(saved.earned_tc,s.formulas.earned_tc);
+const reward=(await db.query('select id from tc_rewards where option=2')).rows[0].id;
+await db.exec(`set request.jwt.claim.sub='${c}'`);const outcome=(await db.query('select tc_redeem($1,gen_random_uuid()) as r',[reward])).rows[0].r;assert.equal(Number(outcome.spent_tc),1200);
+const customer=(await db.query('select used_tc,banlance_tc from tera_coin_customer where auth_user_id=$1',[c])).rows[0];assert.equal(Number(customer.used_tc),1200);assert.equal(Number(customer.banlance_tc),8800);
+console.log('PASS legacy B save + actual redemption without 007 ('+(with005?'005':'004')+')');await db.close();}

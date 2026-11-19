@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "TeraCoin: เว็บและ FlowAccount",
+      "type": "npm",
+      "script": "start:flowaccount",
+      "problemMatcher": []
+    },
+    {
+      "label": "TeraCoin: ทดสอบเว็บ",
+      "type": "shell",
+      "command": "npm test -- --watchAll=false --runInBand",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "TeraCoin: production build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

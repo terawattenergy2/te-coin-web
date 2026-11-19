@@ -1,0 +1,12 @@
+{
+  "search.exclude": {
+    "**/backup-*/**": true,
+    "**/build/**": true,
+    "**/node_modules/**": true,
+    "**/sales-review-private.html": true
+  },
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/node_modules": true
+  }
+}

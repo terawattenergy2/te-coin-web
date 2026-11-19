@@ -1,0 +1,2 @@
+alter table public.tc_settings add column if not exists membership_config jsonb not null default '{"base_cost_column":"tier_2_price","groups":{}}'::jsonb;
+update public.tc_settings set membership_config=membership_config||jsonb_build_object('product_catalog_source',jsonb_build_object('spreadsheet_id','1fKBi2W44MgTpB-ehXa2nocSDIVKJ5lVC9lt5uYsjQW4','sheet_id',1280055382,'sheet_title','Stock Profit','range','A7:O82','rows',76,'imported_at',now())) where id=1;
