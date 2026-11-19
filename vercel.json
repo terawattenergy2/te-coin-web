@@ -2,13 +2,19 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/flowaccount.mjs": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [
     {
       "source": "/integration/flowaccount/:route*",
       "destination": "/api/flowaccount?flowaccountRoute=:route*"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/integration/flowaccount/sales-review/cron",
+      "schedule": "0 20 * * *"
     }
   ]
 }

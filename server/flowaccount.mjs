@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { createGzip } from 'node:zlib';
+import { createHostedReview, validCron } from './sales-review-hosted.mjs';
 import { loadCustomerPurchases } from './customer-purchases.mjs';
 import { createReviewSync } from './sales-review-sync.mjs';
 import {readFile} from 'node:fs/promises';
@@ -54,6 +56,9 @@ async function flow(path){
  if(!r.ok)throw Error(`FlowAccount HTTP ${r.status}${r.status===401?' — Token หมดอายุ ให้เปลี่ยน Token ฝั่งเซิร์ฟเวอร์':''}`);return r.json();
 }
 const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-review-private.html', import.meta.url);
+const hostedReview = createHostedReview({
+ flow, url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source,
+});
 const reviewSync = createReviewSync({
  flow, path: reportPath, enabled: environment === 'v1' && Boolean(source),
  python: config.FLOWACCOUNT_PYTHON_BIN,
@@ -305,6 +310,11 @@ export async function handler(req,res){
  const u=new URL(req.url,'http://localhost');const route=u.pathname.replace('/integration/flowaccount','');
  if(!u.pathname.startsWith('/integration/flowaccount/'))return reply(404,{message:'Not found'});
  if(environment !== 'v1' || !source || !sb || !config.SUPABASE_PUBLISHABLE_KEY) return reply(503,{message:'TeraCoin ต้องเชื่อม FlowAccount Production ใน .env.flowaccount'});
+ if (hosted && route === '/sales-review/cron' && req.method === 'GET') {
+  if (!validCron(req.headers.authorization, config.CRON_SECRET)) return reply(401, {message: 'Unauthorized'});
+  try { return reply(200, await hostedReview.refresh()); }
+  catch (error) { return reply(502, {message: error.message || 'ดึงรายงานยอดขายไม่สำเร็จ'}); }
+ }
  // Exact-tax signup lookup provides the requested contact fields; it never
  // returns credentials, purchase records or Coin balances.
  if(req.method==='POST'&&route==='/lookup-company'){
@@ -391,21 +401,26 @@ export async function handler(req,res){
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
   }
-  if (hosted && (route === '/sales-review' || route === '/sales-review/refresh')) {
-   if (route.endsWith('/refresh') && req.method === 'GET') return reply(200, {state: 'disabled'});
-   return reply(503, {message: 'รายงานยอดขายแบบรวมยังต้องใช้เซิร์ฟเวอร์และพื้นที่เก็บรายงานถาวร ดูใบกำกับภาษีจริงได้ในเมนูเอกสารขาย'});
-  }
   if (route === '/sales-review/refresh') {
-   if (req.method === 'GET') return reply(200, reviewSync.status());
-   if (req.method === 'POST') return reply(202, reviewSync.start());
+   if (req.method === 'GET') return reply(200, hosted ? await hostedReview.status() : reviewSync.status());
+   if (req.method === 'POST') {
+    if (!hosted) return reply(202, reviewSync.start());
+    return reply(200, await hostedReview.refresh());
+   }
   }
   if (req.method === 'GET' && route === '/sales-review') {
    let html;
-   try {
-    html = await readFile(reportPath, 'utf8');
-   } catch (error) {
-    if (error.code === 'ENOENT') return reply(503, {message: 'ยังไม่มีไฟล์รายงานยอดขายบนเซิร์ฟเวอร์'});
-    throw error;
+   if (hosted) {
+    const data = await hostedReview.data();
+    if (!data) return reply(404, {message: 'กดดึงข้อมูลล่าสุดเพื่อสร้างรายงานยอดขายครั้งแรก'});
+    const template = await readFile(new URL('./sales-review-template.html', import.meta.url), 'utf8');
+    html = template.replace('__DATA__', () => data.replace(/</g, '\\u003c'));
+   } else {
+    try { html = await readFile(reportPath, 'utf8'); }
+    catch (error) {
+     if (error.code === 'ENOENT') return reply(503, {message: 'ยังไม่มีไฟล์รายงานยอดขายบนเซิร์ฟเวอร์'});
+     throw error;
+    }
    }
    const [reportCss, reportExport, reportAnalysis] = await Promise.all([
     readFile(new URL('./sales-review.css', import.meta.url), 'utf8'),
@@ -420,6 +435,15 @@ export async function handler(req,res){
    res.setHeader('Content-Type', 'text/html; charset=utf-8');
    res.setHeader('X-Content-Type-Options', 'nosniff');
    res.setHeader('Content-Security-Policy', "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'");
+   if (hosted && /(?:^|[, ])gzip(?:[, ;]|$)/i.test(req.headers['accept-encoding'] || '')) {
+    res.setHeader('Content-Encoding', 'gzip');
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.writeHead(200);
+    const gzip = createGzip();
+    gzip.pipe(res);
+    gzip.end(html);
+    return;
+   }
    res.writeHead(200);
    return res.end(html);
   }

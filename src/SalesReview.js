@@ -60,7 +60,10 @@ export default function SalesReview({ api }) {
     setStarting(true);
     try {
       const nextJob = await api.salesReviewRefresh('POST', controller.signal);
-      if (!controller.signal.aborted) setJob(nextJob);
+      if (!controller.signal.aborted) {
+        setJob(nextJob);
+        if (nextJob.state === 'succeeded') setRevision(value => value + 1);
+      }
     } catch (error) {
       if (!controller.signal.aborted) setJob({ state: 'failed', message: error.message });
     } finally {
@@ -80,8 +83,10 @@ export default function SalesReview({ api }) {
           {!refreshing && job.state === 'failed' && (job.message || 'ดึงข้อมูลไม่สำเร็จ')}
           {!refreshing && job.state === 'succeeded' && 'ดึงข้อมูลล่าสุดสำเร็จ'}
           {job.state === 'disabled' && 'การดึงข้อมูลล่าสุดเปิดใช้กับ FlowAccount Production'}
-          {job.state === 'idle' && !refreshing && 'อัปเดตอัตโนมัติทุกวันเวลา 03:00 น. (เวลาไทย)'}
+          {job.state === 'idle' && !refreshing && 'กดดึงข้อมูลล่าสุดเพื่อโหลดใบกำกับภาษี'}
+
         </span>
+        <span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. (เวลาไทย)</span>
       </div>
       {!result && <p className="notice" role="status">กำลังโหลดรายงานยอดขาย…</p>}
       {result?.error && (
