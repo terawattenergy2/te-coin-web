@@ -81,12 +81,12 @@ export default function SalesReview({ api }) {
           {refreshing ? 'กำลังดึงข้อมูล…' : 'ดึงข้อมูลล่าสุด'}
         </button>
         <span role="status">
-          {refreshing && 'กำลังดึงใบกำกับภาษีจาก FlowAccount รายงานชุดล่าสุดยังเปิดดูได้'}
+          {refreshing && 'กำลังดึงใบเสร็จรับเงินจาก FlowAccount รายงานชุดล่าสุดยังเปิดดูได้'}
           {!refreshing && (refreshError || job.state === 'failed') &&
             (refreshError || job.message || 'ดึงข้อมูลไม่สำเร็จ')}
           {!refreshing && !refreshError && job.state === 'succeeded' && 'ดึงข้อมูลล่าสุดสำเร็จ'}
           {job.state === 'disabled' && 'การดึงข้อมูลล่าสุดเปิดใช้กับ FlowAccount Production'}
-          {job.state === 'idle' && !refreshing && !refreshError && 'กดดึงข้อมูลล่าสุดเพื่อโหลดใบกำกับภาษี'}
+          {job.state === 'idle' && !refreshing && !refreshError && 'กดดึงข้อมูลล่าสุดเพื่อโหลดใบเสร็จรับเงิน'}
         </span>
         <span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. (เวลาไทย)</span>
       </div>

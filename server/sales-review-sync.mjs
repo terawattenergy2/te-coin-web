@@ -7,14 +7,14 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const pageSize = 100;
 
-export async function fetchReviewInvoices(flow, interval = 300) {
-  const invoices = new Map();
+export async function fetchReviewReceipts(flow, interval = 300) {
+  const receipts = new Map();
   let expected;
   for (let page = 1; page <= 1000; page++) {
     let response;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        response = await flow(`tax-invoices?currentPage=${page}&pageSize=${pageSize}`);
+        response = await flow(`receipts?currentPage=${page}&pageSize=${pageSize}`);
         break;
       } catch (error) {
         if (!error.retryAfter || error.retryAfter > 120 || attempt === 2) throw error;
@@ -26,36 +26,36 @@ export async function fetchReviewInvoices(flow, interval = 300) {
     const count = Number(data?.totalDocument);
     if (response?.status === false || data?.totalDocument == null || data.totalDocument === '' ||
         !Number.isSafeInteger(count) || count < 0 || !Array.isArray(data.list)) {
-      throw new Error('ข้อมูลใบกำกับภาษีจาก FlowAccount ไม่ครบ');
+      throw new Error('ข้อมูลใบเสร็จรับเงินจาก FlowAccount ไม่ครบ');
     }
     expected ??= count;
     if (count !== expected) throw new Error('รายการใน FlowAccount เปลี่ยนระหว่างดึงข้อมูล กรุณาลองใหม่');
-    for (const invoice of data.list) {
-      const id = String(invoice.documentId ?? invoice.recordId ?? '');
-      if (!id || invoices.has(id) || !Array.isArray(invoice.items)) {
-        throw new Error('พบใบกำกับภาษีซ้ำหรือข้อมูลรายการไม่ครบ');
+    for (const receipt of data.list) {
+      const id = String(receipt.documentId ?? receipt.recordId ?? '');
+      if (!id || receipts.has(id) || !Array.isArray(receipt.items)) {
+        throw new Error('พบใบเสร็จรับเงินซ้ำหรือข้อมูลรายการไม่ครบ');
       }
-      invoices.set(id, { ...invoice, documentId: id });
+      receipts.set(id, { ...receipt, documentId: id });
     }
-    if (invoices.size > expected) throw new Error('จำนวนใบกำกับภาษีไม่ตรงกับ FlowAccount');
-    if (invoices.size === expected) return [...invoices.values()];
+    if (receipts.size > expected) throw new Error('จำนวนใบเสร็จรับเงินไม่ตรงกับ FlowAccount');
+    if (receipts.size === expected) return [...receipts.values()];
     if (!data.list.length) break;
     await delay(interval);
   }
-  throw new Error('ดึงใบกำกับภาษีไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
+  throw new Error('ดึงใบเสร็จรับเงินไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
 }
 
-function buildData(python, invoices) {
+function buildData(python, receipts) {
   const builder = fileURLToPath(new URL('./sales-review-build.py', import.meta.url));
   return new Promise((resolveData, reject) => {
     const child = execFile(python, ['-X', 'utf8', builder], {
       timeout: 120000, maxBuffer: 128 * 1024 * 1024,
     }, (error, stdout) => {
-      if (error) reject(new Error('สร้างรายงานยอดขายไม่สำเร็จ กรุณาตรวจ Python 3 และข้อมูลใบกำกับภาษี'));
+      if (error) reject(new Error('สร้างรายงานยอดขายไม่สำเร็จ กรุณาตรวจ Python 3 และข้อมูลใบเสร็จรับเงิน'));
       else resolveData(stdout);
     });
     child.stdin.on('error', reject);
-    child.stdin.end(JSON.stringify(invoices));
+    child.stdin.end(JSON.stringify(receipts));
   });
 }
 
@@ -77,9 +77,9 @@ export function createReviewSync({ flow, path, python = 'python3', enabled }) {
     if (pending) return status;
     status = { state: 'running', startedAt: new Date().toISOString() };
     pending = (async () => {
-      const invoices = await fetchReviewInvoices(flow);
+      const receipts = await fetchReviewReceipts(flow);
       const [data, template] = await Promise.all([
-        buildData(python, invoices),
+        buildData(python, receipts),
         readFile(new URL('./sales-review-template.html', import.meta.url), 'utf8'),
       ]);
       const temporary = output + '.' + randomUUID() + '.tmp';

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { gzip, gunzip } from 'node:zlib';
-import { fetchReviewInvoices } from './sales-review-sync.mjs';
+import { fetchReviewReceipts } from './sales-review-sync.mjs';
 import { buildReviewData } from './sales-review-data.mjs';
 
 const compress = promisify(gzip);
@@ -17,7 +17,7 @@ export function validCron(authorization, secret) {
 
 export function createHostedReview({ flow, url, key, source }) {
  const enabled = Boolean(url && key && source);
- const object = `${bucket}/${encodeURIComponent(source)}/report.json.gz`;
+ const object = `${bucket}/${encodeURIComponent(source)}/receipts.json.gz`;
  const headers = { apikey: key };
  if (key?.startsWith('eyJ')) headers.Authorization = 'Bearer ' + key;
  let pending;
@@ -40,8 +40,8 @@ export function createHostedReview({ flow, url, key, source }) {
  async function refresh() {
   if (pending) return pending;
   pending = (async () => {
-   const invoices = await fetchReviewInvoices(flow, 150);
-   const data = buildReviewData(invoices);
+   const receipts = await fetchReviewReceipts(flow, 150);
+   const data = buildReviewData(receipts);
    await storage('POST', await compress(JSON.stringify(data)));
    return {state: 'succeeded', finishedAt: data.meta.loadedAt};
   })();

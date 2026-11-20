@@ -1,4 +1,4 @@
-"""Build the private sales-review dataset from JSON tax invoices on stdin."""
+"""Build the private sales-review dataset from JSON receipts on stdin."""
 import collections
 import json
 import re

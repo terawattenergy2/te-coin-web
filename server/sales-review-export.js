@@ -72,18 +72,18 @@
   function workbook() {
     const names = ['ยอดตามเซลส์', 'ยอดตามสินค้า', 'รายการขาย'];
     const amount = $('amountLabel').textContent;
-    const sellers = [['ชื่อเซลส์', 'ใบกำกับภาษี', 'รายการ', 'ชื่อสินค้า', amount],
+    const sellers = [['ชื่อเซลส์', 'ใบเสร็จรับเงิน', 'รายการ', 'ชื่อสินค้า', amount],
       ...aggregate(filtered, row => row[3]).map(item => [
         item.key, item.docs.size, item.lines, item.names.size, item.amount,
       ])];
-    const products = [['สินค้า', 'ยี่ห้อ', 'หมวด', 'จำนวนแยกหน่วย', 'ใบกำกับภาษี', amount],
+    const products = [['สินค้า', 'ยี่ห้อ', 'หมวด', 'จำนวนแยกหน่วย', 'ใบเสร็จรับเงิน', amount],
       ...aggregate(filtered, row => row[5]).map(item => {
         const product = productMap.get(item.key);
         return [product.name, product.brand, product.category,
           [...item.units].map(([unit, count]) => `${num(count)} ${unit}`).join(' / '),
           item.docs.size, item.amount];
       })];
-    const lines = [['วันที่', 'เลขใบกำกับภาษี', 'เซลส์', 'ลูกค้า', 'สินค้า', 'ยี่ห้อ', 'หมวด',
+    const lines = [['วันที่', 'เลขใบเสร็จรับเงิน', 'เซลส์', 'ลูกค้า', 'สินค้า', 'ยี่ห้อ', 'หมวด',
       'จำนวน', 'หน่วย', 'ยอดตามรายการ', 'ก่อน VAT ที่ปันส่วน', 'สถานะ', 'รายละเอียด'],
       ...[...filtered].sort((a, b) => b[2].localeCompare(a[2]) || b[1].localeCompare(a[1])).map(row => [
         row[2], row[1], row[3], row[4], row[6], row[7], row[8], row[9], row[10], row[11], row[12],

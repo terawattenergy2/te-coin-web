@@ -55,7 +55,7 @@ async function flow(path){
  if (r.status === 429) checkFlowRateLimit(r);
  if(!r.ok)throw Error(`FlowAccount HTTP ${r.status}${r.status===401?' — Token หมดอายุ ให้เปลี่ยน Token ฝั่งเซิร์ฟเวอร์':''}`);return r.json();
 }
-const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-review-private.html', import.meta.url);
+const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-review-receipts-private.html', import.meta.url);
 const hostedReview = createHostedReview({
  flow, url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source,
 });

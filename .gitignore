@@ -31,3 +31,5 @@ yarn-error.log*
 
 # Private pre-production configuration backup
 /.env.flowaccount.before-production
+
+/server/sales-review-receipts-private.html

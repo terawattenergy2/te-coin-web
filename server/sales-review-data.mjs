@@ -41,7 +41,7 @@ function classify(name) {
 function amount(value) {
  if (value == null || value === '') return null;
  const number = Number(value);
- if (!Number.isFinite(number)) throw Error('ยอดเงินหรือจำนวนสินค้าในใบกำกับภาษีไม่ถูกต้อง');
+ if (!Number.isFinite(number)) throw Error('ยอดเงินหรือจำนวนสินค้าในใบเสร็จรับเงินไม่ถูกต้อง');
  return number;
 }
 
@@ -69,12 +69,12 @@ function allocate(raw, base) {
  return whole.map(value => Number(value) / 100);
 }
 
-export function buildReviewData(invoices, now = new Date()) {
+export function buildReviewData(receipts, now = new Date()) {
  const rows = [];
  const catalog = new Map();
  const names = new Set();
  let start = '', end = '', reconciled = 0;
- for (const doc of invoices) {
+ for (const doc of receipts) {
   const totals = doc.items.map(item => amount(item.total));
   const base = amount(doc.totalWithoutVat);
   const allocated = allocate(doc.items.map(item => item.total), base);
@@ -111,8 +111,8 @@ export function buildReviewData(invoices, now = new Date()) {
   timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23',
  }).format(now).replace(',', '');
  return {meta: {
-  documents: invoices.length, rows: rows.length, rawNames: names.size, products: products.length,
+  documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
-  reconciled, unknownFinancialDocs: invoices.length - reconciled,
+  reconciled, unknownFinancialDocs: receipts.length - reconciled,
  }, rows, products};
 }

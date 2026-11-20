@@ -61,7 +61,7 @@
     const missing = new Set(rows.filter(row => value(row) == null).map(row => row[5]));
     const known = new Set(rows.filter(row => value(row) != null).map(row => row[5]));
     return `<div class="scroll analysis-seller-products"><table>
-      <thead><tr><th scope="col">สินค้า</th><th scope="col">จำนวนแยกหน่วย</th><th scope="col">ใบกำกับภาษี</th><th scope="col">ยอดขาย (บาท)</th></tr></thead>
+      <thead><tr><th scope="col">สินค้า</th><th scope="col">จำนวนแยกหน่วย</th><th scope="col">ใบเสร็จรับเงิน</th><th scope="col">ยอดขาย (บาท)</th></tr></thead>
       <tbody>${items.map(item => `<tr>
         <td>${E(productMap.get(item.key).name || 'ไม่ระบุชื่อสินค้า')}</td>
         <td>${[...item.units].map(([unit, quantity]) => `${num(quantity)} ${E(unit)}`).join(' / ')}</td>
