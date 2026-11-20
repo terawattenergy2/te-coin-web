@@ -1,11 +1,12 @@
-import { execFile } from 'node:child_process';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const pageSize = 100;
+import { buildReviewData, depositPattern, reviewQuoteNumbers, shippingPattern } from './sales-review-data.mjs';
+
+const pageSize = 200;
 
 export async function fetchPaidReviewReceipts(flow, interval = 300) {
   const receipts = new Map();
@@ -48,18 +49,51 @@ export async function fetchPaidReviewReceipts(flow, interval = 300) {
   throw new Error('ดึงใบเสร็จรับเงินไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
 }
 
-function buildData(python, receipts) {
-  const builder = fileURLToPath(new URL('./sales-review-build.py', import.meta.url));
-  return new Promise((resolveData, reject) => {
-    const child = execFile(python, ['-X', 'utf8', builder], {
-      timeout: 120000, maxBuffer: 128 * 1024 * 1024,
-    }, (error, stdout) => {
-      if (error) reject(new Error('สร้างรายงานยอดขายไม่สำเร็จ กรุณาตรวจ Python 3 และข้อมูลใบเสร็จรับเงิน'));
-      else resolveData(stdout);
-    });
-    child.stdin.on('error', reject);
-    child.stdin.end(JSON.stringify(receipts));
-  });
+export async function loadSalesReview(flow, interval) {
+  const receipts = await fetchPaidReviewReceipts(flow, interval);
+  const numbers = new Set(receipts.flatMap(receipt => receipt.items.filter(item =>
+    (depositPattern.test(String(item.name || '')) || shippingPattern.test(String(item.name || '')))).flatMap(item => reviewQuoteNumbers(item, receipt))));
+  const quotes = new Map();
+  const duplicates = new Set();
+  if (numbers.size) {
+    const loadQuotePage = async page => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const result = await flow(`quotations?currentPage=${page}&pageSize=${pageSize}`);
+          const count = Number(result.data?.totalDocument);
+          if (result.status === false || result.data?.totalDocument == null ||
+              !Number.isSafeInteger(count) || count < 0 || !Array.isArray(result.data?.list)) {
+            throw Error('ข้อมูลใบเสนอราคาจาก FlowAccount ไม่ครบ');
+          }
+          return {count, rows: result.data.list};
+        } catch (error) {
+          if (!error.retryAfter || error.retryAfter > 75 || attempt >= 1) throw error;
+          await delay(error.retryAfter * 1000 + 250);
+        }
+      }
+    };
+    const first = await loadQuotePage(1);
+    const pages = Math.ceil(first.count / pageSize);
+    const add = ({count, rows}) => {
+      if (count !== first.count) throw Error('รายการใบเสนอราคาเปลี่ยนระหว่างดึงข้อมูล กรุณาลองใหม่');
+      for (const quote of rows) {
+        const number = String(quote.documentSerial || '').toUpperCase();
+        if (!numbers.has(number)) continue;
+        if (quotes.has(number)) duplicates.add(number);
+        quotes.set(number, quote);
+      }
+    };
+    add(first);
+    for (let page = 2; page <= pages && quotes.size < numbers.size; page += 6) {
+      const batch = Array.from({length: Math.min(6, pages - page + 1)}, async (_, offset) => {
+        if (offset) await delay(offset * 650);
+        return loadQuotePage(page + offset);
+      });
+      for (const result of await Promise.all(batch)) add(result);
+    }
+    for (const number of duplicates) quotes.delete(number);
+  }
+  return buildReviewData(receipts, new Date(), quotes);
 }
 
 // Bangkok is UTC+07 throughout the year. 20:00 UTC is 03:00 the next day there.
@@ -70,7 +104,7 @@ export function nextDailyReview(now = Date.now()) {
   return next.getTime();
 }
 
-export function createReviewSync({ flow, path, python = 'python3', enabled }) {
+export function createReviewSync({ flow, path, enabled }) {
   const output = typeof path === 'string' ? resolve(path) : fileURLToPath(path);
   let status = { state: 'idle' };
   let pending;
@@ -80,14 +114,13 @@ export function createReviewSync({ flow, path, python = 'python3', enabled }) {
     if (pending) return status;
     status = { state: 'running', startedAt: new Date().toISOString() };
     pending = (async () => {
-      const receipts = await fetchPaidReviewReceipts(flow);
       const [data, template] = await Promise.all([
-        buildData(python, receipts),
+        loadSalesReview(flow),
         readFile(new URL('./sales-review-template.html', import.meta.url), 'utf8'),
       ]);
       const temporary = output + '.' + randomUUID() + '.tmp';
       try {
-        const safeData = data.replace(/</g, '\\u003c');
+        const safeData = JSON.stringify(data).replace(/</g, '\\u003c');
         await writeFile(temporary, template.replace('__DATA__', () => safeData), { mode: 0o600, flag: 'wx' });
         await rename(temporary, output);
       } finally {

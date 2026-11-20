@@ -61,7 +61,6 @@ const hostedReview = createHostedReview({
 });
 const reviewSync = createReviewSync({
  flow, path: reportPath, enabled: environment === 'v1' && Boolean(source),
- python: config.FLOWACCOUNT_PYTHON_BIN,
 });
 
 async function fetchSalesPage(path, page, pageSize) {

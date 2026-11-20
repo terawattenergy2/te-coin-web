@@ -1,3 +1,13 @@
+export const shippingPattern = /ขนส่ง|ค่าจัดส่ง|ค่ารถ|shipping|delivery|freight/i;
+export const depositPattern = /มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/i;
+
+export function reviewQuoteNumbers(item, receipt) {
+ const pattern = /\bQT[0-9][A-Z0-9-]{3,25}\b/gi;
+ const numbers = String(item.description || '').match(pattern) ||
+  String(receipt.reference || '').match(pattern) || [];
+ return [...new Set(numbers.map(value => value.toUpperCase()))];
+}
+
 const rules = [
  [/\bsig\b|ซิก/, 'รอยืนยัน Sigenergy', 'รอยืนยัน · มีคำว่า SIG', 'คำย่อยังระบุยี่ห้อไม่ได้แน่ชัด'],
  [/ja\s*solar|^jam\d/, 'JA Solar', 'แผงโซลาร์', 'ชื่อยี่ห้อ / ตระกูลรุ่น JAM'],
@@ -20,7 +30,7 @@ const sigen = [
 const capitalize = name => name[0].toUpperCase() + name.slice(1);
 function classify(name) {
  const text = name.normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
- if (/มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/.test(text)) return ['เงินมัดจำสินค้า', 'มัดจำ/รับเงินล่วงหน้า', 'ดูสินค้าจากเอกสารอ้างอิง'];
+ if (depositPattern.test(text)) return ['เงินมัดจำสินค้า', 'มัดจำ/รับเงินล่วงหน้า', 'ดูสินค้าจากเอกสารอ้างอิง'];
  if (/sigenergy|sigen|ซิกเอน|ซิเจน/.test(text)) {
   const category = sigen.find(([pattern]) => pattern.test(text))?.[1] || 'อื่น ๆ';
   return ['Sigenergy', 'Sigenergy · ' + category, 'ชื่อระบุ Sigenergy / Sigen'];
@@ -69,11 +79,34 @@ function allocate(raw, base) {
  return whole.map(value => Number(value) / 100);
 }
 
-export function buildReviewData(receipts, now = new Date()) {
+function sourceProducts(item, receipt, quotes, shipping) {
+ const [number, ...others] = reviewQuoteNumbers(item, receipt);
+ const quote = quotes.get(number);
+ if (!quote || others.length || receipt.contactId == null || String(quote.contactId) !== String(receipt.contactId)) return [];
+ const products = (quote.items || []).filter(line => {
+  const name = String(line.name || '').trim();
+  return name && !depositPattern.test(name) && !shippingPattern.test(name) && classify(name)[0] !== 'ไม่ใช่รายการสินค้า';
+ });
+ const normalize = value => String(value || '').normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');
+ const feeName = normalize(item.name);
+ const quoteFees = (quote.items || []).filter(line => shippingPattern.test(line.name || ''));
+ const chargeText = [item, ...quoteFees.filter(line => normalize(line.name) === feeName || quoteFees.length === 1)]
+  .map(line => normalize([line.name, line.description].filter(Boolean).join(' ')));
+ const selected = shipping ? products.filter(line => {
+  const name = normalize(line.name);
+  return name.length >= 4 && chargeText.some(text => text.includes(name));
+ }) : products;
+ return selected.length && selected.every(line => line.total != null && line.total !== '' &&
+  Number.isFinite(Number(line.total)) && Number(line.total) >= 0)
+  ? selected.filter(line => Number(line.total) > 0).map(line => ({...line, quoteNumber: number})) : [];
+}
+
+export function buildReviewData(receipts, now = new Date(), quotes = new Map()) {
  const rows = [];
  const catalog = new Map();
  const names = new Set();
  let start = '', end = '', reconciled = 0;
+ let depositsAllocated = 0, depositsUnresolved = 0, allocatedDepositCents = 0, shippingAllocated = 0;
  for (const doc of receipts) {
   const totals = doc.items.map(item => amount(item.total));
   const base = amount(doc.totalWithoutVat);
@@ -88,7 +121,35 @@ export function buildReviewData(receipts, now = new Date()) {
    if (!start || date < start) start = date;
    if (date > end) end = date;
   }
-  for (const [index, item] of doc.items.entries()) {
+  const lines = doc.items.flatMap((item, index) => {
+   const original = {item, raw: totals[index], net: allocated[index]};
+   const deposit = depositPattern.test(String(item.name || ''));
+   const shipping = !deposit && shippingPattern.test(String(item.name || ''));
+   if (!deposit && !shipping) return [original];
+   const products = sourceProducts(item, doc, quotes, shipping);
+   if (!products.length || original.raw == null || original.raw < 0) {
+    if (deposit) depositsUnresolved++;
+    return [original];
+   }
+   const weights = products.map(product => product.total);
+   const raw = allocate(weights, original.raw);
+   const net = allocate(weights, original.net);
+   const cents = value => Math.round(allocate([1], value)[0] * 100);
+   if (raw.some(value => value == null) || raw.reduce((sum, value) => sum + cents(value), 0) !== cents(original.raw) ||
+       (original.net != null && net.reduce((sum, value) => sum + cents(value), 0) !== cents(original.net))) {
+    throw Error('ยอดปันส่วนเงินมัดจำไม่ตรงกับใบเสร็จ');
+   }
+   if (shipping) shippingAllocated++;
+   else {
+    depositsAllocated++;
+    allocatedDepositCents += cents(original.raw);
+   }
+   return products.map((product, i) => ({
+    item: {...product, quantity: 0, unitName: '', description: item.name + ' · ' + product.quoteNumber + ' · ' + (item.description || '')},
+    raw: raw[i], net: net[i], charge: shipping ? String(item.name || '').trim() : 'เงินมัดจำ',
+   }));
+  });
+  for (const {item, raw, net, charge} of lines) {
    const original = String(item.name || '');
    const name = original.trim();
    const key = name.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss').replace(/ς/g, 'σ').replace(/\s+/g, ' ');
@@ -99,10 +160,10 @@ export function buildReviewData(receipts, now = new Date()) {
    product.variants.add(original);
    product.ids.add(String(item.id || 'ไม่มีรหัส'));
    rows.push([String(doc.documentId), String(doc.documentSerial ?? ''), date, seller, String(doc.contactName || ''),
-    key, name, brand, category, amount(item.quantity) || 0, String(item.unitName || ''), totals[index],
-    allocated[index], status, excluded, rawSum, base, String(item.description || ''),
+    key, name, brand, category, amount(item.quantity) || 0, String(item.unitName || ''), raw,
+    net, status, excluded, rawSum, base, String(item.description || ''),
     amount(doc.discountAmount) || 0, amount(doc.documentDeductionAmount) || 0,
-    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim()]);
+    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim(), charge || '']);
   }
  }
  const products = [...catalog.values()].map(product => ({
@@ -115,5 +176,6 @@ export function buildReviewData(receipts, now = new Date()) {
   documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
+  depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated,
  }, rows, products};
 }

@@ -61,6 +61,15 @@
     const missing = new Set(rows.filter(row => value(row) == null).map(row => row[5]));
     const known = new Set(rows.filter(row => value(row) != null).map(row => row[5]));
     const depositRows = groupRows(rows.filter(row => row[8] === 'มัดจำ/รับเงินล่วงหน้า'), row => row[5]);
+    const productsByKey = groupRows(rows, row => row[5]);
+    function chargeDetails(key) {
+      const source = productsByKey.get(key);
+      if (!source.some(row => row[21])) return '';
+      const groups = aggregate(source.filter(row => value(row) != null),
+        row => row[21] || 'ค่าสินค้าและรายการตามใบเสร็จ');
+      return `<details><summary>รายละเอียดค่าสินค้าและค่าใช้จ่าย</summary><ul>${groups.map(group =>
+        `<li>${E(group.key)} · ${money(group.amount)} บาท</li>`).join('')}</ul></details>`;
+    }
     function depositDetails(key) {
       const receipts = groupRows(depositRows.get(key) || [], row => row[0]);
       if (!receipts.size) return '';
@@ -70,7 +79,7 @@
     return `<div class="scroll analysis-seller-products"><table>
       <thead><tr><th scope="col">สินค้า</th><th scope="col">จำนวนแยกหน่วย</th><th scope="col">ใบเสร็จรับเงิน</th><th scope="col">ยอดขาย (บาท)</th></tr></thead>
       <tbody>${items.map(item => `<tr>
-        <td>${E(productMap.get(item.key).name || 'ไม่ระบุชื่อสินค้า')}${depositDetails(item.key)}</td>
+        <td>${E(productMap.get(item.key).name || 'ไม่ระบุชื่อสินค้า')}${chargeDetails(item.key)}${depositDetails(item.key)}</td>
         <td>${[...item.units].map(([unit, quantity]) => `${num(quantity)} ${E(unit)}`).join(' / ')}</td>
         <td class="num">${num(item.docs.size)}</td>
         <td class="num">${known.has(item.key) ? money(item.amount) : 'รอตรวจ'}${known.has(item.key) && missing.has(item.key) ? ' · บางรายการรอตรวจ' : ''}</td>

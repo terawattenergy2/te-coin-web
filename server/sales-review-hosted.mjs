@@ -1,8 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { gzip, gunzip } from 'node:zlib';
-import { fetchPaidReviewReceipts } from './sales-review-sync.mjs';
-import { buildReviewData } from './sales-review-data.mjs';
+import { loadSalesReview } from './sales-review-sync.mjs';
 
 const compress = promisify(gzip);
 const decompress = promisify(gunzip);
@@ -40,10 +39,9 @@ export function createHostedReview({ flow, url, key, source }) {
  async function refresh() {
   if (pending) return pending;
   pending = (async () => {
-   const receipts = await fetchPaidReviewReceipts(flow, 150);
-   const data = buildReviewData(receipts);
+   const data = await loadSalesReview(flow, 150);
    await storage('POST', await compress(JSON.stringify(data)));
-   return {state: 'succeeded', finishedAt: data.meta.loadedAt};
+   return {state: 'succeeded', finishedAt: data.meta.loadedAt, depositsAllocated: data.meta.depositsAllocated, depositsUnresolved: data.meta.depositsUnresolved};
   })();
   try { return await pending; }
   finally { pending = undefined; }
