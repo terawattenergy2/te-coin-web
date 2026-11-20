@@ -3,7 +3,6 @@ const rules = [
  [/ja\s*solar|^jam\d/, 'JA Solar', 'แผงโซลาร์', 'ชื่อยี่ห้อ / ตระกูลรุ่น JAM'],
  [/canadian|^cs\d/, 'Canadian Solar', 'แผงโซลาร์', 'ชื่อยี่ห้อ / ตระกูลรุ่น CS'],
  [/and\s*solar|amcp|amck|adcu|aess/, 'AndSolar', 'Optimizer / Rapid Shutdown', 'ชื่อยี่ห้อ / ตระกูลรุ่น ต้องยืนยันรุ่นที่มีแต่คำย่อ'],
- [/มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/, 'ไม่ใช่รายการสินค้า', 'มัดจำ/รับเงินล่วงหน้า', 'ระบุในชื่อรายการ'],
  [/ขนส่ง|ค่ารถ|shipping|delivery|freight/, 'ไม่ใช่รายการสินค้า', 'ขนส่ง/บริการ', 'ระบุในชื่อรายการ'],
  [/dc.?cable|สายไฟ|\bmm2\b|\bmm\.2\b|pv.?cable/, 'ไม่ระบุยี่ห้อ', 'สายไฟ/สาย DC', 'จัดตามข้อความ ไม่ได้ยืนยันยี่ห้อ'],
  [/clamp|rail|grounding|lug|clip|hook|feet|bolt|screw|nut|washer|^tl-|mount|splice|connector|mc4/, 'ไม่ระบุยี่ห้อ', 'โครงสร้าง/อุปกรณ์ติดตั้ง', 'จัดตามข้อความ ไม่ได้ยืนยันยี่ห้อ'],
@@ -21,6 +20,7 @@ const sigen = [
 const capitalize = name => name[0].toUpperCase() + name.slice(1);
 function classify(name) {
  const text = name.normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
+ if (/มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/.test(text)) return ['เงินมัดจำสินค้า', 'มัดจำ/รับเงินล่วงหน้า', 'ดูสินค้าจากเอกสารอ้างอิง'];
  if (/sigenergy|sigen|ซิกเอน|ซิเจน/.test(text)) {
   const category = sigen.find(([pattern]) => pattern.test(text))?.[1] || 'อื่น ๆ';
   return ['Sigenergy', 'Sigenergy · ' + category, 'ชื่อระบุ Sigenergy / Sigen'];

@@ -8,6 +8,7 @@ export default function SalesReview({ api }) {
   const [job, setJob] = useState({ state: 'idle' });
   const [starting, setStarting] = useState(false);
   const [refreshError, setRefreshError] = useState(null);
+  const frame = useRef(null);
   const lastFinished = useRef();
   const startRequest = useRef();
   const refreshing = starting || job.state === 'running';
@@ -53,6 +54,28 @@ export default function SalesReview({ api }) {
   }, [api, starting]);
 
   useEffect(() => () => startRequest.current?.abort(), []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadDeposit(event) {
+      const source = frame.current?.contentWindow;
+      const id = event.data?.id;
+      if (!source || event.source !== source || event.data?.type !== 'teracoin-deposit-request' ||
+          typeof id !== 'string' || !/^\d{1,20}$/.test(id)) return;
+      try {
+        const {sources} = await api.salesDeposit(id, controller.signal);
+        if (!controller.signal.aborted) source.postMessage({type: 'teracoin-deposit-result', id, sources}, '*');
+      } catch {
+        if (!controller.signal.aborted) source.postMessage({type: 'teracoin-deposit-result', id, error: true}, '*');
+      }
+    }
+    window.addEventListener('message', loadDeposit);
+    return () => {
+      window.removeEventListener('message', loadDeposit);
+      controller.abort();
+    };
+  }, [api, result]);
+
 
   async function refresh() {
     if (startRequest.current) return;
@@ -101,6 +124,7 @@ export default function SalesReview({ api }) {
       )}
       {result?.html && (
         <iframe
+          ref={frame}
           title="รายงานยอดขายแยกตามเซลส์และสินค้า"
           sandbox="allow-scripts allow-downloads"
           srcDoc={result.html.replace(/<head>/i, '<head>' + reportPolicy)}

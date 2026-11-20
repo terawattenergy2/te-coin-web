@@ -60,10 +60,17 @@
     const items = aggregate(rows, row => row[5]);
     const missing = new Set(rows.filter(row => value(row) == null).map(row => row[5]));
     const known = new Set(rows.filter(row => value(row) != null).map(row => row[5]));
+    const depositRows = groupRows(rows.filter(row => row[8] === 'มัดจำ/รับเงินล่วงหน้า'), row => row[5]);
+    function depositDetails(key) {
+      const receipts = groupRows(depositRows.get(key) || [], row => row[0]);
+      if (!receipts.size) return '';
+      return `<details><summary>ดูสินค้าที่รับมัดจำ</summary><ul>${[...receipts].map(([id, [row]]) =>
+        `<li><button type="button" data-deposit-id="${E(id)}">${E(row[1])}</button> <span role="status"></span></li>`).join('')}</ul></details>`;
+    }
     return `<div class="scroll analysis-seller-products"><table>
       <thead><tr><th scope="col">สินค้า</th><th scope="col">จำนวนแยกหน่วย</th><th scope="col">ใบเสร็จรับเงิน</th><th scope="col">ยอดขาย (บาท)</th></tr></thead>
       <tbody>${items.map(item => `<tr>
-        <td>${E(productMap.get(item.key).name || 'ไม่ระบุชื่อสินค้า')}</td>
+        <td>${E(productMap.get(item.key).name || 'ไม่ระบุชื่อสินค้า')}${depositDetails(item.key)}</td>
         <td>${[...item.units].map(([unit, quantity]) => `${num(quantity)} ${E(unit)}`).join(' / ')}</td>
         <td class="num">${num(item.docs.size)}</td>
         <td class="num">${known.has(item.key) ? money(item.amount) : 'รอตรวจ'}${known.has(item.key) && missing.has(item.key) ? ' · บางรายการรอตรวจ' : ''}</td>
@@ -186,6 +193,28 @@
     analysisButton.classList.remove('active');
     analysisButton.setAttribute('aria-pressed', 'false');
   }));
+
+  panel.addEventListener('click', event => {
+    const button = event.target.closest('[data-deposit-id]');
+    if (!button) return;
+    button.disabled = true;
+    button.nextElementSibling.textContent = 'กำลังค้นเอกสารอ้างอิง…';
+    parent.postMessage({type: 'teracoin-deposit-request', id: button.dataset.depositId}, '*');
+  });
+
+  window.addEventListener('message', event => {
+    const {type, id, sources, error} = event.data || {};
+    if (event.source !== parent || type !== 'teracoin-deposit-result') return;
+    for (const button of panel.querySelectorAll('[data-deposit-id]')) {
+      if (button.dataset.depositId !== id) continue;
+      button.disabled = false;
+      button.nextElementSibling.textContent = error
+        ? 'ค้นหาไม่สำเร็จ กดเพื่อลองอีกครั้ง'
+        : sources.length ? sources.map(source => source.number + ' · ' +
+          (source.products.join(' / ') || 'ยังยืนยันสินค้าไม่ได้')).join(' | ')
+          : 'ยังไม่พบเลขใบเสนอราคาในรายการมัดจำ';
+    }
+  });
 
   const updateReport = update;
   update = () => {

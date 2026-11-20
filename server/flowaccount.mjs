@@ -401,6 +401,27 @@ export async function handler(req,res){
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
   }
+  if (req.method === 'GET' && route === '/sales-review/deposit') {
+   const id = u.searchParams.get('id') || '';
+   if (!/^\d{1,20}$/.test(id)) return reply(400, {message: 'รหัสใบเสร็จไม่ถูกต้อง'});
+   const receipt = await fetchSalesDocument('receipts/' + id, id);
+   const deposits = (receipt.items || []).filter(item => /มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/i.test(item.name || ''));
+   if (!deposits.length || String(receipt.status) !== '5' || String(receipt.statusString).toLowerCase() !== 'paid') {
+    return reply(404, {message: 'ไม่พบใบเสร็จมัดจำที่ชำระครบ'});
+   }
+   const numbers = [...new Set(deposits.flatMap(item => String(item.description || '').match(/\bQT[0-9][A-Z0-9-]{3,25}\b/gi) || []).map(s => s.toUpperCase()))];
+   if (numbers.length > 10) return reply(400, {message: 'มีเอกสารอ้างอิงหลายฉบับ กรุณาตรวจใน FlowAccount'});
+   const sources = await Promise.all(numbers.map(async number => {
+    const query = new URLSearchParams({searchString: number, currentPage: '1', pageSize: '20'});
+    const result = await flow('quotations?' + query);
+    if (result.status === false) throw Error('ค้นหาใบเสนอราคาใน FlowAccount ไม่สำเร็จ');
+    const matches = documents(result).filter(doc => String(doc.documentSerial).toUpperCase() === number &&
+      doc.contactId != null && receipt.contactId != null && String(doc.contactId) === String(receipt.contactId));
+    const quote = matches.length === 1 ? matches[0] : null;
+    return {number, products: [...new Set((quote?.items || []).map(item => String(item.name || '').trim()).filter(Boolean))]};
+   }));
+   return reply(200, {sources});
+  }
   if (route === '/sales-review/refresh') {
    if (req.method === 'GET') return reply(200, hosted ? await hostedReview.status() : reviewSync.status());
    if (req.method === 'POST') {

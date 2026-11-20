@@ -11,6 +11,7 @@ docs = json.load(sys.stdin)
 def classify(name):
  s=unicodedata.normalize('NFC',name).strip().lower();s=re.sub(r'\s+',' ',s)
  sig=bool(re.search(r'sigenergy|sigen|ซิกเอน|ซิเจน',s))
+ if re.search(r'มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า',s):return 'เงินมัดจำสินค้า','มัดจำ/รับเงินล่วงหน้า','ดูสินค้าจากเอกสารอ้างอิง'
  if sig:
   brand='Sigenergy';confidence='ชื่อระบุ Sigenergy / Sigen'
   if re.search(r'dummy|ตัวอย่าง',s):cat='Sigenergy · ตัวอย่าง / Dummy'
@@ -27,7 +28,6 @@ def classify(name):
  elif re.search(r'and\s*solar|amcp|amck|adcu|aess',s):brand='AndSolar';cat='Optimizer / Rapid Shutdown';confidence='ชื่อยี่ห้อ / ตระกูลรุ่น ต้องยืนยันรุ่นที่มีแต่คำย่อ'
  elif re.search(r'jinko|longi|trina|risen|astronergy',s):
   brand=next(x for x in ['jinko','longi','trina','risen','astronergy'] if x in s).title();cat='แผงโซลาร์';confidence='ชื่อยี่ห้อ'
- elif re.search(r'มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า',s):brand='ไม่ใช่รายการสินค้า';cat='มัดจำ/รับเงินล่วงหน้า';confidence='ระบุในชื่อรายการ'
  elif re.search(r'ขนส่ง|ค่ารถ|shipping|delivery|freight',s):brand='ไม่ใช่รายการสินค้า';cat='ขนส่ง/บริการ';confidence='ระบุในชื่อรายการ'
  elif re.search(r'dc.?cable|สายไฟ|\bmm2\b|\bmm\.2\b|pv.?cable',s):brand='ไม่ระบุยี่ห้อ';cat='สายไฟ/สาย DC';confidence='จัดตามข้อความ ไม่ได้ยืนยันยี่ห้อ'
  elif re.search(r'clamp|rail|grounding|lug|clip|hook|feet|bolt|screw|nut|washer|^tl-|mount|splice|connector|mc4',s):brand='ไม่ระบุยี่ห้อ';cat='โครงสร้าง/อุปกรณ์ติดตั้ง';confidence='จัดตามข้อความ ไม่ได้ยืนยันยี่ห้อ'

@@ -61,6 +61,8 @@ export const api = {
   }),
   customerCoin: (page, signal) => request("/integration/flowaccount/customer-coin?page=" + page, { signal, cache: "no-store" }),
   salesReviewRefresh: (method, signal) => request("/integration/flowaccount/sales-review/refresh", { method, signal, cache: "no-store" }),
+  salesDeposit: (id, signal) => request('/integration/flowaccount/sales-review/deposit?' +
+    new URLSearchParams({id}), {signal, cache: 'no-store'}),
   salesReview: signal => request("/integration/flowaccount/sales-review", { signal, cache: "no-store" }, "text"),
   lookupCompany:(tax,signal)=>request('/integration/flowaccount/lookup-company',{method:'POST',body:JSON.stringify({tax}),signal}),
   flowaccount: (path, body) => request('/integration/flowaccount/'+path, body === undefined ? {} : {method:'POST',body:JSON.stringify(body)}),
