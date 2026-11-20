@@ -55,12 +55,24 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 #analysisSearchStatus { margin: 6px 0; }
 #analysisSearchStatus:empty { display: none; }
 
-.analysis-product-field { min-width: 0; }
+.analysis-product-field { min-width: 0; position: relative; }
 .analysis-product-field > strong { display: block; margin-bottom: 6px; }
 #analysisProduct summary { cursor: pointer; border: 1px solid #aebfd0; border-radius: 8px; padding: 11px; }
-#analysisProductChoices { max-height: 240px; overflow: auto; padding: 8px; }
-#analysisProductChoices label { display: flex; gap: 8px; padding: 6px 0; align-items: baseline; }
-#analysisProductChoices input { width: auto; }
+#analysisProductChoices {
+  position: absolute; top: 100%; right: 0; z-index: 4; width: max(100%, 22rem);
+  max-width: calc(100vw - 48px); max-height: 280px; overflow: auto;
+  padding: 6px; background: #fff; border: 1px solid #bdccd9;
+  border-radius: 10px; box-shadow: 0 8px 20px #14293c24;
+}
+#analysisProductChoices label { display: flex; gap: 9px; padding: 7px 9px; align-items: flex-start; cursor: pointer; }
+#analysisProductChoices label:hover { background: #edf4fa; }
+#analysisProductChoices label span { min-width: 0; overflow-wrap: anywhere; }
+#analysisProductChoices input { flex: 0 0 17px; width: 17px; height: 17px; min-height: 0; padding: 0; margin: 3px 0 0; accent-color: #185497; }
+.analysis-picker-actions { position: sticky; top: -6px; display: flex; gap: 8px; justify-content: space-between; padding: 5px; background: #fff; }
+.analysis-picker-actions button, .analysis-selected button { min-height: 34px; padding: 4px 10px; }
+.analysis-selected { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.analysis-selected:empty { display: none; }
+.analysis-selected button { background: #edf4fa; color: #12477f; border-radius: 18px; overflow-wrap: anywhere; }
 .sales-dashboard-disclosure { background: white; border: 1px solid #d4dfeb; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
 .sales-dashboard-disclosure > summary { cursor: pointer; font-weight: 700; }
 .sales-dashboard h3 { margin-top: 22px; }

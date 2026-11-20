@@ -19,6 +19,7 @@
       <label>ค้นหาชื่อหรือรุ่นสินค้า<input id="analysisSearch" type="search" list="analysisSuggestions" placeholder="เช่น BAT 10.0 หรือ Gateway" autocomplete="off"><datalist id="analysisSuggestions"></datalist></label>
       <div class="analysis-product-field"><strong>สินค้า</strong><details id="analysisProduct"><summary>ทุกรุ่นในหมวดที่เลือก</summary><div id="analysisProductChoices"></div></details></div>
     </div>
+    <div id="analysisSelected" class="analysis-selected" aria-label="รุ่นที่เลือก"></div>
     <p id="analysisSearchStatus" class="muted" role="status"></p>
     <p class="muted">ส่วนแบ่งของเซลส์คิดจากยอดรวมของยี่ห้อ หมวด หรือสินค้าที่เลือก ภายใต้ตัวกรองและฐานยอดปัจจุบัน กดชื่อเซลส์เพื่อดูรายละเอียดสินค้า</p>
     <p id="analysisLeader" aria-live="polite"></p>
@@ -116,13 +117,26 @@
     $('analysisSuggestions').replaceChildren(...(terms.length ? products.slice(0, 16).map(entry => new Option(entry.name)) : []));
     product.querySelector('summary').textContent = selectedProducts.size
       ? `เลือก ${num(selectedProducts.size)} รุ่น` : 'ทุกรุ่นในหมวดที่เลือก';
+    const scroll = productChoices.scrollTop;
     productChoices.replaceChildren();
     const clear = document.createElement('button');
     clear.type = 'button';
     clear.textContent = 'ล้างรายการที่เลือก';
     clear.disabled = !selectedProducts.size;
     clear.onclick = () => { selectedProducts.clear(); render(); product.querySelector('summary').focus(); };
-    productChoices.append(clear);
+    const actions = document.createElement('div');
+    actions.className = 'analysis-picker-actions';
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.textContent = 'เสร็จ';
+    done.onclick = () => { product.open = false; product.querySelector('summary').focus(); };
+    actions.append(clear, done);
+    productChoices.append(actions);
+    if (!products.length) {
+      const empty = document.createElement('p');
+      empty.textContent = 'ไม่พบรุ่นที่ตรงกับคำค้น';
+      productChoices.append(empty);
+    }
     for (const entry of products) {
       const label = document.createElement('label');
       const option = document.createElement('input');
@@ -134,9 +148,21 @@
         render();
         [...productChoices.querySelectorAll('input')][products.indexOf(entry)]?.focus();
       };
-      label.append(option, entry.name || 'ไม่ระบุชื่อสินค้า');
+      const name = document.createElement('span');
+      name.textContent = entry.name || 'ไม่ระบุชื่อสินค้า';
+      label.append(option, name);
       productChoices.append(label);
     }
+    productChoices.scrollTop = scroll;
+    $('analysisSelected').replaceChildren(...[...selectedProducts].map(key => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      const name = productMap.get(key)?.name || 'ไม่ระบุชื่อสินค้า';
+      button.textContent = name + ' ×';
+      button.setAttribute('aria-label', 'เอา ' + name + ' ออกจากรายการ');
+      button.onclick = () => { selectedProducts.delete(key); render(); product.querySelector('summary').focus(); };
+      return button;
+    }));
     $('analysisSearchStatus').textContent = terms.length
       ? products.length ? `พบ ${num(products.length)} รุ่น` : 'ไม่พบสินค้าในยี่ห้อและหมวดที่เลือก'
       : '';
@@ -187,7 +213,17 @@
     selectedProducts.clear();
     render();
   };
-  search.oninput = render;
+  search.oninput = () => { product.open = Boolean(search.value.trim()); render(); };
+  panel.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && product.open) {
+      event.preventDefault();
+      product.open = false;
+      product.querySelector('summary').focus();
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!event.composedPath().includes(product) && event.target !== search) product.open = false;
+  });
   analysisButton.onclick = () => {
     panel.hidden = false;
     tableContent.forEach(node => { node.hidden = true; });

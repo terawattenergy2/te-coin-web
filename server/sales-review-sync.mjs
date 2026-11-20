@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { buildReviewData, depositPattern, reviewQuoteNumbers, shippingPattern } from './sales-review-data.mjs';
+import { buildReviewData, depositPattern, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
 
 const pageSize = 200;
 
@@ -49,51 +49,64 @@ export async function fetchPaidReviewReceipts(flow, interval = 300) {
   throw new Error('ดึงใบเสร็จรับเงินไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
 }
 
+async function findReportDocuments(flow, path, keys, keyOf) {
+  const found = new Map();
+  const duplicates = new Set();
+  if (!keys.size) return found;
+  async function pageAt(page) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const result = await flow(`${path}?currentPage=${page}&pageSize=${pageSize}`);
+        const count = Number(result.data?.totalDocument);
+        if (result.status === false || result.data?.totalDocument == null ||
+            !Number.isSafeInteger(count) || count < 0 || !Array.isArray(result.data?.list)) {
+          throw Error('เอกสารอ้างอิงจาก FlowAccount ไม่ครบ');
+        }
+        return {count, rows: result.data.list};
+      } catch (error) {
+        if (!error.retryAfter || error.retryAfter > 75 || attempt >= 1) throw error;
+        await delay(error.retryAfter * 1000 + 250);
+      }
+    }
+  }
+  const first = await pageAt(1);
+  const pages = Math.ceil(first.count / pageSize);
+  function add({count, rows}) {
+    if (count !== first.count) throw Error('เอกสารอ้างอิงเปลี่ยนระหว่างดึงข้อมูล กรุณาลองใหม่');
+    for (const document of rows) {
+      const key = keyOf(document);
+      if (!keys.has(key)) continue;
+      if (found.has(key)) duplicates.add(key);
+      found.set(key, document);
+    }
+  }
+  add(first);
+  for (let page = 2; page <= pages && found.size < keys.size; page += 6) {
+    const batch = Array.from({length: Math.min(6, pages - page + 1)}, async (_, offset) => {
+      if (offset) await delay(offset * 750);
+      return pageAt(page + offset);
+    });
+    for (const result of await Promise.all(batch)) add(result);
+  }
+  for (const key of duplicates) found.delete(key);
+  return found;
+}
+
 export async function loadSalesReview(flow, interval) {
   const receipts = await fetchPaidReviewReceipts(flow, interval);
+  const shippingReceipts = receipts.filter(receipt => receipt.items.some(item => shippingPattern.test(item.name || '')));
+  const invoiceIds = new Set(shippingReceipts.flatMap(shippingInvoiceIds));
+  const invoices = await findReportDocuments(flow, 'tax-invoices', invoiceIds,
+    document => String(document.documentId ?? document.recordId));
   const numbers = new Set(receipts.flatMap(receipt => receipt.items.filter(item =>
-    (depositPattern.test(String(item.name || '')) || shippingPattern.test(String(item.name || '')))).flatMap(item => reviewQuoteNumbers(item, receipt))));
-  const quotes = new Map();
-  const duplicates = new Set();
-  if (numbers.size) {
-    const loadQuotePage = async page => {
-      for (let attempt = 0; ; attempt++) {
-        try {
-          const result = await flow(`quotations?currentPage=${page}&pageSize=${pageSize}`);
-          const count = Number(result.data?.totalDocument);
-          if (result.status === false || result.data?.totalDocument == null ||
-              !Number.isSafeInteger(count) || count < 0 || !Array.isArray(result.data?.list)) {
-            throw Error('ข้อมูลใบเสนอราคาจาก FlowAccount ไม่ครบ');
-          }
-          return {count, rows: result.data.list};
-        } catch (error) {
-          if (!error.retryAfter || error.retryAfter > 75 || attempt >= 1) throw error;
-          await delay(error.retryAfter * 1000 + 250);
-        }
-      }
-    };
-    const first = await loadQuotePage(1);
-    const pages = Math.ceil(first.count / pageSize);
-    const add = ({count, rows}) => {
-      if (count !== first.count) throw Error('รายการใบเสนอราคาเปลี่ยนระหว่างดึงข้อมูล กรุณาลองใหม่');
-      for (const quote of rows) {
-        const number = String(quote.documentSerial || '').toUpperCase();
-        if (!numbers.has(number)) continue;
-        if (quotes.has(number)) duplicates.add(number);
-        quotes.set(number, quote);
-      }
-    };
-    add(first);
-    for (let page = 2; page <= pages && quotes.size < numbers.size; page += 6) {
-      const batch = Array.from({length: Math.min(6, pages - page + 1)}, async (_, offset) => {
-        if (offset) await delay(offset * 650);
-        return loadQuotePage(page + offset);
-      });
-      for (const result of await Promise.all(batch)) add(result);
-    }
-    for (const number of duplicates) quotes.delete(number);
+    depositPattern.test(item.name || '') || shippingPattern.test(item.name || ''))
+    .flatMap(item => reviewQuoteNumbers(item, receipt))));
+  for (const invoice of invoices.values()) {
+    for (const number of reviewQuoteNumbers({}, invoice)) numbers.add(number);
   }
-  return buildReviewData(receipts, new Date(), quotes);
+  const quotes = await findReportDocuments(flow, 'quotations', numbers,
+    document => String(document.documentSerial || '').toUpperCase());
+  return buildReviewData(receipts, new Date(), quotes, invoices);
 }
 
 // Bangkok is UTC+07 throughout the year. 20:00 UTC is 03:00 the next day there.

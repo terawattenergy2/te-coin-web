@@ -79,34 +79,71 @@ function allocate(raw, base) {
  return whole.map(value => Number(value) / 100);
 }
 
-function sourceProducts(item, receipt, quotes, shipping) {
- const [number, ...others] = reviewQuoteNumbers(item, receipt);
- const quote = quotes.get(number);
- if (!quote || others.length || receipt.contactId == null || String(quote.contactId) !== String(receipt.contactId)) return [];
- const products = (quote.items || []).filter(line => {
+export function shippingInvoiceIds(receipt) {
+ const links = Array.isArray(receipt.referencedByMe) ? receipt.referencedByMe : [];
+ return [...new Set(links.filter(link => String(link.referenceDocumentType) === '7')
+  .map(link => String(link.referenceId || '')).filter(id => /^\d+$/.test(id)))];
+}
+
+const normalizeName = value => String(value || '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+const sameContact = (left, right) => left.contactId != null && String(left.contactId) === String(right.contactId);
+
+function productLines(document) {
+ return (document.items || []).filter(line => {
   const name = String(line.name || '').trim();
   return name && !depositPattern.test(name) && !shippingPattern.test(name) && classify(name)[0] !== 'ไม่ใช่รายการสินค้า';
  });
- const normalize = value => String(value || '').normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');
- const feeName = normalize(item.name);
- const quoteFees = (quote.items || []).filter(line => shippingPattern.test(line.name || ''));
- const chargeText = [item, ...quoteFees.filter(line => normalize(line.name) === feeName || quoteFees.length === 1)]
-  .map(line => normalize([line.name, line.description].filter(Boolean).join(' ')));
- const selected = shipping ? products.filter(line => {
-  const name = normalize(line.name);
-  return name.length >= 4 && chargeText.some(text => text.includes(name));
- }) : products;
- return selected.length && selected.every(line => line.total != null && line.total !== '' &&
-  Number.isFinite(Number(line.total)) && Number(line.total) >= 0)
-  ? selected.filter(line => Number(line.total) > 0).map(line => ({...line, quoteNumber: number})) : [];
 }
 
-export function buildReviewData(receipts, now = new Date(), quotes = new Map()) {
+function shippingProduct(item, receipt, quotes, invoices) {
+ const invoiceLinks = shippingInvoiceIds(receipt).map(id => invoices.get(id)).filter(doc =>
+  doc && sameContact(receipt, doc) && String(doc.statusString).toLowerCase() !== 'void');
+ const numbers = new Set([...reviewQuoteNumbers(item, receipt), ...invoiceLinks.flatMap(doc => reviewQuoteNumbers({}, doc))]);
+ const quoteLinks = [...numbers].map(number => quotes.get(number)).filter(doc => doc && sameContact(receipt, doc));
+ const documents = [receipt, ...invoiceLinks, ...quoteLinks];
+ const fee = normalizeName(item.name);
+ const words = [item, ...documents.slice(1).flatMap(doc => (doc.items || []).filter(line => normalizeName(line.name) === fee))]
+  .map(line => normalizeName([line.name, line.description].filter(Boolean).join(' ')));
+ const models = new Map();
+ for (const doc of documents) {
+  for (const line of productLines(doc)) {
+   const key = normalizeName(line.name);
+   if (key.length >= 4 && words.some(text => text.includes(key)) && !models.has(key)) {
+    models.set(key, {...line, total: 1, quoteNumber: doc.documentSerial});
+   }
+  }
+ }
+ if (models.size) return models.size === 1 ? [...models.values()] : [];
+
+ // A single model on the same receipt is the only possible shipment on that receipt.
+ // For referenced documents, require a matching freight line alongside the single model.
+ const groups = documents.map((doc, index) => !index || (doc.items || []).some(line => normalizeName(line.name) === fee)
+  ? {doc, lines: productLines(doc)} : null).filter(Boolean);
+ const direct = groups[0];
+ const candidates = direct.lines.length ? [direct] : groups.slice(1);
+ const distinct = new Map();
+ for (const {doc, lines} of candidates) {
+  for (const line of lines) distinct.set(normalizeName(line.name), {...line, total: 1, quoteNumber: doc.documentSerial});
+ }
+ return distinct.size === 1 ? [...distinct.values()] : [];
+}
+
+function sourceProducts(item, receipt, quotes) {
+ const [number, ...others] = reviewQuoteNumbers(item, receipt);
+ const quote = quotes.get(number);
+ if (!quote || others.length || !sameContact(receipt, quote)) return [];
+ const products = productLines(quote);
+ return products.length && products.every(line => line.total != null && line.total !== '' &&
+  Number.isFinite(Number(line.total)) && Number(line.total) >= 0)
+  ? products.filter(line => Number(line.total) > 0).map(line => ({...line, quoteNumber: number})) : [];
+}
+
+export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map()) {
  const rows = [];
  const catalog = new Map();
  const names = new Set();
  let start = '', end = '', reconciled = 0;
- let depositsAllocated = 0, depositsUnresolved = 0, allocatedDepositCents = 0, shippingAllocated = 0;
+ let depositsAllocated = 0, depositsUnresolved = 0, allocatedDepositCents = 0, shippingAllocated = 0, allocatedShippingCents = 0, shippingUnresolved = 0;
  for (const doc of receipts) {
   const totals = doc.items.map(item => amount(item.total));
   const base = amount(doc.totalWithoutVat);
@@ -126,9 +163,10 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map()) 
    const deposit = depositPattern.test(String(item.name || ''));
    const shipping = !deposit && shippingPattern.test(String(item.name || ''));
    if (!deposit && !shipping) return [original];
-   const products = sourceProducts(item, doc, quotes, shipping);
+   const products = shipping ? shippingProduct(item, doc, quotes, invoices) : sourceProducts(item, doc, quotes);
    if (!products.length || original.raw == null || original.raw < 0) {
     if (deposit) depositsUnresolved++;
+    else shippingUnresolved++;
     return [original];
    }
    const weights = products.map(product => product.total);
@@ -139,13 +177,16 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map()) 
        (original.net != null && net.reduce((sum, value) => sum + cents(value), 0) !== cents(original.net))) {
     throw Error('ยอดปันส่วนเงินมัดจำไม่ตรงกับใบเสร็จ');
    }
-   if (shipping) shippingAllocated++;
+   if (shipping) {
+    shippingAllocated++;
+    allocatedShippingCents += cents(original.raw);
+   }
    else {
     depositsAllocated++;
     allocatedDepositCents += cents(original.raw);
    }
    return products.map((product, i) => ({
-    item: {...product, quantity: 0, unitName: '', description: item.name + ' · ' + product.quoteNumber + ' · ' + (item.description || '')},
+    item: {...product, quantity: 0, unitName: '', description: item.name + ' · ' + (product.quoteNumber || '') + ' · ' + (item.description || '')},
     raw: raw[i], net: net[i], charge: shipping ? String(item.name || '').trim() : 'เงินมัดจำ',
    }));
   });
@@ -176,6 +217,6 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map()) 
   documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
-  depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated,
+  depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,
  }, rows, products};
 }
