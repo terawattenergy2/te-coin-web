@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const pageSize = 100;
 
-export async function fetchReviewReceipts(flow, interval = 300) {
+export async function fetchPaidReviewReceipts(flow, interval = 300) {
   const receipts = new Map();
   let expected;
   for (let page = 1; page <= 1000; page++) {
@@ -38,7 +38,10 @@ export async function fetchReviewReceipts(flow, interval = 300) {
       receipts.set(id, { ...receipt, documentId: id });
     }
     if (receipts.size > expected) throw new Error('จำนวนใบเสร็จรับเงินไม่ตรงกับ FlowAccount');
-    if (receipts.size === expected) return [...receipts.values()];
+    if (receipts.size === expected) return [...receipts.values()].filter(receipt =>
+      String(receipt.status) === '5' && String(receipt.statusString).toLowerCase() === 'paid' &&
+      ![receipt.isDelete, receipt.isDeleted, receipt.isCancelled].some(flag =>
+        flag === true || flag === 1 || flag === '1' || String(flag).toLowerCase() === 'true'));
     if (!data.list.length) break;
     await delay(interval);
   }
@@ -77,7 +80,7 @@ export function createReviewSync({ flow, path, python = 'python3', enabled }) {
     if (pending) return status;
     status = { state: 'running', startedAt: new Date().toISOString() };
     pending = (async () => {
-      const receipts = await fetchReviewReceipts(flow);
+      const receipts = await fetchPaidReviewReceipts(flow);
       const [data, template] = await Promise.all([
         buildData(python, receipts),
         readFile(new URL('./sales-review-template.html', import.meta.url), 'utf8'),
