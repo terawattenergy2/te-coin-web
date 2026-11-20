@@ -422,16 +422,17 @@ export async function handler(req,res){
      throw error;
     }
    }
-   const [reportCss, reportExport, reportAnalysis] = await Promise.all([
+   const [reportCss, reportExport, reportAnalysis, reportDashboard] = await Promise.all([
     readFile(new URL('./sales-review.css', import.meta.url), 'utf8'),
     readFile(new URL('./sales-review-export.js', import.meta.url), 'utf8'),
     readFile(new URL('./sales-review-analysis.js', import.meta.url), 'utf8'),
+    readFile(new URL('./sales-review-dashboard.js', import.meta.url), 'utf8'),
    ]);
    html = html
     .replace('</head>', () => `<style>${reportCss}</style></head>`)
     .replace('<div class="filters">', '<div id="exportStatus" role="status"></div><div class="filters">')
     .replace('</div><div id="exportStatus"', '<button id="exportExcel" type="button">ส่งออก Excel</button></div><div id="exportStatus"')
-    .replace('</body>', () => `<script>${reportExport}</script><script>${reportAnalysis}</script></body>`);
+    .replace('</body>', () => `<script>${reportExport}</script><script>${reportAnalysis}</script><script>${reportDashboard}</script></body>`);
    res.setHeader('Content-Type', 'text/html; charset=utf-8');
    res.setHeader('X-Content-Type-Options', 'nosniff');
    res.setHeader('Content-Security-Policy', "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'");

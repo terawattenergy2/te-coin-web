@@ -101,7 +101,8 @@ export function buildReviewData(receipts, now = new Date()) {
    rows.push([String(doc.documentId), String(doc.documentSerial ?? ''), date, seller, String(doc.contactName || ''),
     key, name, brand, category, amount(item.quantity) || 0, String(item.unitName || ''), totals[index],
     allocated[index], status, excluded, rawSum, base, String(item.description || ''),
-    amount(doc.discountAmount) || 0, amount(doc.documentDeductionAmount) || 0]);
+    amount(doc.discountAmount) || 0, amount(doc.documentDeductionAmount) || 0,
+    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim()]);
   }
  }
  const products = [...catalog.values()].map(product => ({

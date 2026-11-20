@@ -16,8 +16,8 @@
     <div class="analysis-filters">
       <label>ยี่ห้อ / กลุ่มสินค้า<select id="analysisBrand"></select></label>
       <label>หมวดสินค้า<select id="analysisCategory"></select></label>
-      <label>ค้นหาชื่อหรือรุ่นสินค้า<input id="analysisSearch" type="search" placeholder="เช่น BAT 10.0 หรือ Gateway" autocomplete="off"></label>
-      <label>สินค้า<select id="analysisProduct"></select></label>
+      <label>ค้นหาชื่อหรือรุ่นสินค้า<input id="analysisSearch" type="search" list="analysisSuggestions" placeholder="เช่น BAT 10.0 หรือ Gateway" autocomplete="off"><datalist id="analysisSuggestions"></datalist></label>
+      <div class="analysis-product-field"><strong>สินค้า</strong><details id="analysisProduct"><summary>ทุกรุ่นในหมวดที่เลือก</summary><div id="analysisProductChoices"></div></details></div>
     </div>
     <p id="analysisSearchStatus" class="muted" role="status"></p>
     <p class="muted">ส่วนแบ่งของเซลส์คิดจากยอดรวมของยี่ห้อ หมวด หรือสินค้าที่เลือก ภายใต้ตัวกรองและฐานยอดปัจจุบัน กดชื่อเซลส์เพื่อดูรายละเอียดสินค้า</p>
@@ -72,7 +72,7 @@
 
   let selectedBrand;
   let selectedCategory = '';
-  let selectedProduct;
+  const selectedProducts = new Set();
   function render() {
     if (panel.hidden) return;
 
@@ -92,27 +92,46 @@
       .map(key => productMap.get(key))
       .filter(entry => terms.every(term => normalize(entry.name).includes(term)))
       .sort((a, b) => collator.compare(a.name, b.name));
-    // A blank product name can have an empty key, so option values use the list index.
-    const choices = products.map((entry, index) => [String(index), entry.name || 'ไม่ระบุชื่อสินค้า']);
-    const previousIndex = products.findIndex(entry => entry.key === selectedProduct);
-    const chosenIndex = setChoices(product, choices, 'ทุกรุ่นในหมวดที่เลือก', String(previousIndex));
-    const chosen = chosenIndex === '' ? undefined : products[Number(chosenIndex)];
-    selectedProduct = chosen?.key;
+    const productChoices = $('analysisProductChoices');
+    const available = new Set(categoryRows.map(row => row[5]));
+    for (const key of selectedProducts) {
+      if (!available.has(key)) selectedProducts.delete(key);
+    }
+    $('analysisSuggestions').replaceChildren(...(terms.length ? products.slice(0, 16).map(entry => new Option(entry.name)) : []));
+    product.querySelector('summary').textContent = selectedProducts.size
+      ? `เลือก ${num(selectedProducts.size)} รุ่น` : 'ทุกรุ่นในหมวดที่เลือก';
+    productChoices.replaceChildren();
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.textContent = 'ล้างรายการที่เลือก';
+    clear.disabled = !selectedProducts.size;
+    clear.onclick = () => { selectedProducts.clear(); render(); product.querySelector('summary').focus(); };
+    productChoices.append(clear);
+    for (const entry of products) {
+      const label = document.createElement('label');
+      const option = document.createElement('input');
+      option.type = 'checkbox';
+      option.checked = selectedProducts.has(entry.key);
+      option.onchange = () => {
+        if (option.checked) selectedProducts.add(entry.key);
+        else selectedProducts.delete(entry.key);
+        render();
+        [...productChoices.querySelectorAll('input')][products.indexOf(entry)]?.focus();
+      };
+      label.append(option, entry.name || 'ไม่ระบุชื่อสินค้า');
+      productChoices.append(label);
+    }
     $('analysisSearchStatus').textContent = terms.length
-      ? products.length ? `พบ ${num(products.length)} รุ่น เลือกสินค้าเพื่อดูยอดของรุ่นนั้น` : 'ไม่พบสินค้าในยี่ห้อและหมวดที่เลือก'
+      ? products.length ? `พบ ${num(products.length)} รุ่น` : 'ไม่พบสินค้าในยี่ห้อและหมวดที่เลือก'
       : '';
-    const rows = chosen ? categoryRows.filter(row => row[5] === chosen.key) : categoryRows;
-    product.onchange = () => {
-      selectedProduct = product.value === '' ? undefined : products[Number(product.value)]?.key;
-      render();
-    };
+    const rows = selectedProducts.size ? categoryRows.filter(row => selectedProducts.has(row[5])) : categoryRows;
     const bySeller = groupRows(rows, row => row[3]);
     const ranked = aggregate(rows.filter(row => value(row) != null), row => row[3]);
     const knownSellers = new Set(ranked.map(seller => seller.key));
     const total = ranked.reduce((sum, seller) => sum + seller.amount, 0);
     const leaders = ranked.filter(seller => Math.abs(seller.amount - ranked[0].amount) < 0.000001);
     $('analysisLeader').textContent = leaders.length
-      ? `ยอดรวม${chosen ? "สินค้า" : selectedCategory ? "หมวด" : "กลุ่ม"} ${money(total)} บาท · ยอดสูงสุด ${leaders.map(seller => seller.key).join(' / ')} · ${money(leaders[0].amount)} บาท (${percent(leaders[0].amount, total)})`
+      ? `ยอดรวม${selectedProducts.size ? "สินค้า" : selectedCategory ? "หมวด" : "กลุ่ม"} ${money(total)} บาท · ยอดสูงสุด ${leaders.map(seller => seller.key).join(' / ')} · ${money(leaders[0].amount)} บาท (${percent(leaders[0].amount, total)})`
       : rows.length ? 'ไม่มีข้อมูลยอดขายที่ใช้จัดอันดับ' : 'ไม่พบยี่ห้อ / กลุ่มสินค้าที่ตรงตัวกรอง';
 
     const sellers = [...ranked, ...[...bySeller.keys()]
@@ -143,13 +162,13 @@
   select.onchange = () => {
     selectedBrand = select.value;
     selectedCategory = '';
-    selectedProduct = undefined;
+    selectedProducts.clear();
     search.value = '';
     render();
   };
   category.onchange = () => {
     selectedCategory = category.value;
-    selectedProduct = undefined;
+    selectedProducts.clear();
     render();
   };
   search.oninput = render;

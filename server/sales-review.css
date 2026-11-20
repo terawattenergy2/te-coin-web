@@ -54,3 +54,24 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 .analysis-filters :is(input, select) { min-width: 0; }
 #analysisSearchStatus { margin: 6px 0; }
 #analysisSearchStatus:empty { display: none; }
+
+.analysis-product-field { min-width: 0; }
+.analysis-product-field > strong { display: block; margin-bottom: 6px; }
+#analysisProduct summary { cursor: pointer; border: 1px solid #aebfd0; border-radius: 8px; padding: 11px; }
+#analysisProductChoices { max-height: 240px; overflow: auto; padding: 8px; }
+#analysisProductChoices label { display: flex; gap: 8px; padding: 6px 0; align-items: baseline; }
+#analysisProductChoices input { width: auto; }
+.sales-dashboard-disclosure { background: white; border: 1px solid #d4dfeb; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.sales-dashboard-disclosure > summary { cursor: pointer; font-weight: 700; }
+.sales-dashboard h3 { margin-top: 22px; }
+.dashboard-frequency { display: block; max-width: 290px; }
+.dashboard-rankings { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,320px),1fr)); gap: 20px; }
+.dashboard-rankings details { margin: 10px 0; }
+.sales-dashboard .scroll { max-height: 350px; overflow: auto; }
+#dashboardCompanies li { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; }
+#dashboardCompanies .analysis-track { grid-column: 1 / -1; }
+
+#dashboardCompanies [data-company="0"] .analysis-track span { background: #1761a0; }
+#dashboardCompanies [data-company="1"] .analysis-track span { background: #18745f; }
+#dashboardCompanies [data-company="2"] .analysis-track span { background: #8053a4; }
+#dashboardCompanies [data-company="3"] .analysis-track span { background: #ab5518; }
