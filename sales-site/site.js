@@ -15,6 +15,9 @@ const views = $('views');
 const audit = $('audit');
 const success = $('success');
 const sellerGroupsPanel = $('seller-groups');
+const reviewPanel = $('review');
+const reviewViews = $('review-views');
+let selectedReview = 'products';
 let sellerAliases = new Map();
 let rawReport;
 let quotePending;
@@ -78,19 +81,36 @@ function showView(view) {
   for (const button of views.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === view));
   }
-  const checking = view === 'audit';
-  $('title').textContent = views.querySelector('[aria-pressed="true"]').textContent;
+  const reviewing = view === 'review';
   const measuring = view === 'success';
-  const grouping = view === 'seller-groups';
-  $('report').hidden = checking || measuring || grouping;
-  sellerGroupsPanel.hidden = !grouping;
+  $('title').textContent = views.querySelector('[aria-pressed="true"]').textContent;
+  $('report').hidden = reviewing || measuring;
   success.hidden = !measuring;
-  audit.hidden = !checking;
-  if (checking && !auditRows) loadAudit();
+  reviewPanel.hidden = !reviewing;
+  if (reviewing) showReview(selectedReview);
   if (measuring) saleSuccess.open();
-  if (grouping) reviewSellerNames();
-  if (!checking && !measuring && !grouping) showReportView();
+  if (!reviewing && !measuring) showReportView();
 }
+
+function showReview(view) {
+  selectedReview = view;
+  for (const button of reviewViews.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(button.dataset.review === view));
+  }
+  const products = view === 'products';
+  audit.hidden = !products;
+  sellerGroupsPanel.hidden = products;
+  if (products) {
+    if (!auditRows) loadAudit();
+  } else {
+    reviewSellerNames();
+  }
+}
+
+reviewViews.addEventListener('click', event => {
+  const view = event.target.closest('button')?.dataset.review;
+  if (view) showReview(view);
+});
 
 function showReportView() {
   frame.contentWindow?.postMessage({type: 'crm-report-view', view: selectedView}, '*');
@@ -194,7 +214,8 @@ function showLogin(message = '') {
   $('audit-rows').replaceChildren();
   $('audit-search').value = $('audit-filter').value = '';
   $('title').textContent = 'ยอดขายตามเซลส์';
-  views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = true;
+  selectedReview = 'products';
+  views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = reviewPanel.hidden = true;
   rawReport = quotePending = undefined;
   quoteNamesLoaded = groupReadSucceeded = false;
   sellerAliases.clear();
