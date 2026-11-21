@@ -44,11 +44,23 @@
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>
 <div class="toolbar success-toolbar">
 <label>ปีที่ออกใบเสนอราคา<select id="success-year"><option value="">ทุกปี</option></select></label>
-<label>เซลส์<select id="success-seller"><option value="">ทุกคน</option></select></label>
+<div class="success-seller-field">
+<span id="success-seller-label">เซลส์</span>
+<details id="success-seller" class="success-seller-picker">
+<summary aria-labelledby="success-seller-label success-seller-summary"><span id="success-seller-summary">ทุกคน</span></summary>
+<div class="success-seller-menu">
+<label>ค้นหาชื่อเซลส์<input id="success-seller-search" type="search"></label>
+<div id="success-seller-options" class="success-seller-options" role="group" aria-labelledby="success-seller-label"></div>
+<p id="success-seller-empty" hidden>ไม่พบชื่อที่ตรงกับคำค้น</p>
+<div class="success-seller-actions"><button type="button" id="success-seller-clear">ล้างการเลือก</button><button type="button" id="success-seller-done">เสร็จ</button></div>
+</div>
+</details>
+</div>
 <label>ค้นหาลูกค้า / เลขใบเสนอราคา<input id="success-search" type="search"></label>
 <button type="button" id="success-refresh">โหลดข้อมูลอีกครั้ง</button>
 </div>
 <p id="success-status" role="status"></p>
+<p id="success-selected" hidden></p>
 <div id="success-metrics" class="success-metrics"></div>
 <h2>ผลงานรายเซลส์</h2>
 <div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">

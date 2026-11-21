@@ -36,6 +36,11 @@ export function createSaleSuccess(request) {
   const refresh = $('success-refresh');
   const year = $('success-year');
   const seller = $('success-seller');
+  const sellerSearch = $('success-seller-search');
+  const sellerOptions = $('success-seller-options');
+  const selectedSellers = new Set();
+  const collator = new Intl.Collator('th');
+  let sellerNames = [];
   const query = $('success-search');
   const outcome = $('success-outcome');
 
@@ -44,8 +49,13 @@ export function createSaleSuccess(request) {
     const term = query.value.trim().toLowerCase();
     const filtered = data.rows.filter(row =>
       (!year.value || row.date.startsWith(year.value + '-')) &&
-      (!seller.value || sellerOf(row) === seller.value) &&
+      (!selectedSellers.size || selectedSellers.has(sellerOf(row))) &&
       [row.customer, row.number].some(value => value.toLowerCase().includes(term)));
+    const selected = sellerNames.filter(name => selectedSellers.has(name));
+    $('success-seller-summary').textContent = selected.length ? `เลือก ${thaiNumber.format(selected.length)} คน` : 'ทุกคน';
+    const selectedLabel = $('success-selected');
+    selectedLabel.hidden = !selected.length;
+    selectedLabel.textContent = selected.length ? 'กำลังดู ' + selected.join(' · ') : '';
     const total = counts(filtered);
     const metrics = [['ใบเสนอราคา', thaiNumber.format(total.total)], ...Object.entries(outcomes).map(([key, label]) =>
       [label, `${thaiNumber.format(total[key])} · ${total.total ? percent.format(total[key] / total.total) : '—'}`])];
@@ -87,14 +97,13 @@ export function createSaleSuccess(request) {
       const next = await request();
       if (requestEpoch !== epoch) return;
       data = next;
-      for (const [control, values] of [
-        [year, [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse()],
-        [seller, [...new Set(data.rows.map(sellerOf))].sort((a,b) => a.localeCompare(b, 'th'))],
-      ]) {
-        const selected = control.value;
-        control.replaceChildren(control.options[0], ...values.map(value => new Option(value, value)));
-        if (values.includes(selected)) control.value = selected;
-      }
+      const selectedYear = year.value;
+      const years = [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse();
+      year.replaceChildren(year.options[0], ...years.map(value => new Option(value, value)));
+      if (years.includes(selectedYear)) year.value = selectedYear;
+      sellerNames = [...new Set(data.rows.map(sellerOf))].sort(collator.compare);
+      for (const name of selectedSellers) if (!sellerNames.includes(name)) selectedSellers.delete(name);
+      renderSellerOptions();
       render();
       status.textContent = `ข้อมูล ณ ${bangkokDate.format(new Date(data.loadedAt))} (เวลาไทย)`;
     } catch (error) {
@@ -107,7 +116,41 @@ export function createSaleSuccess(request) {
     }
   }
 
-  for (const control of [year, seller, query, outcome]) {
+  function renderSellerOptions() {
+    const term = sellerSearch.value.trim().toLowerCase();
+    const names = sellerNames.filter(name => name.toLowerCase().includes(term));
+    sellerOptions.replaceChildren(...names.map(name => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = name;
+      checkbox.checked = selectedSellers.has(name);
+      label.append(checkbox, document.createTextNode(name));
+      return label;
+    }));
+    $('success-seller-empty').hidden = names.length > 0;
+  }
+
+  sellerSearch.addEventListener('input', renderSellerOptions);
+  sellerOptions.addEventListener('change', event => {
+    const {value, checked} = event.target;
+    if (checked) selectedSellers.add(value);
+    else selectedSellers.delete(value);
+    page = 0;
+    render();
+  });
+  $('success-seller-clear').onclick = () => {
+    selectedSellers.clear();
+    page = 0;
+    renderSellerOptions();
+    render();
+  };
+  $('success-seller-done').onclick = () => {
+    seller.open = false;
+    seller.querySelector('summary').focus();
+  };
+
+  for (const control of [year, query, outcome]) {
     control.addEventListener(control === query ? 'input' : 'change', () => { page = 0; render(); });
   }
   $('success-prev').onclick = () => { page--; render(); };
@@ -122,7 +165,15 @@ export function createSaleSuccess(request) {
       pending = false;
       page = 0;
       refresh.disabled = false;
-      for (const control of [year, seller]) control.replaceChildren(control.options[0]);
+      year.replaceChildren(year.options[0]);
+      sellerNames = [];
+      selectedSellers.clear();
+      seller.open = false;
+      sellerSearch.value = '';
+      sellerOptions.replaceChildren();
+      $('success-seller-summary').textContent = 'ทุกคน';
+      $('success-selected').hidden = true;
+      $('success-selected').textContent = '';
       query.value = outcome.value = status.textContent = $('success-page').textContent = '';
       for (const id of ['success-metrics', 'success-team', 'success-quotes']) $(id).replaceChildren();
       $('success-prev').disabled = $('success-next').disabled = true;

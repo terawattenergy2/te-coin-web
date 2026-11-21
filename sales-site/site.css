@@ -89,3 +89,23 @@ body.dashboard-detail-open #report::after {
 .success-table th, .success-table td { padding: 9px 12px; border-bottom: 1px solid #d6e1ed; }
 .success-table th { position: sticky; top: 0; background: #e8f1fa; }
 .success-table td:first-child { white-space: nowrap; }
+
+.success-seller-field { display: grid; gap: 4px; min-width: min(14rem, 100%); }
+.success-seller-picker { position: relative; }
+.success-seller-picker summary { cursor: pointer; min-height: 44px; border: 1px solid #9ab1c7; border-radius: 9px; padding: 8px 10px; }
+.success-seller-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 2;
+  width: min(330px, calc(100vw - 54px)); background: white; border: 1px solid #d6e1ed;
+  border-radius: 12px; padding: 12px; box-shadow: 0 8px 24px #163e7320;
+}
+.success-seller-menu input[type="search"] { width: 100%; min-width: 0; }
+.success-seller-options { max-height: min(260px, 38vh); overflow: auto; margin-block: 8px; }
+.success-seller-options label { display: flex; align-items: center; gap: 8px; padding: 8px 4px; cursor: pointer; overflow-wrap: anywhere; }
+.success-seller-options input { min-height: 0; width: 18px; height: 18px; flex: none; accent-color: #185497; }
+.success-seller-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+#success-seller-clear { background: #e8f1fa; color: #184576; }
+#success-selected { color: #405872; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .success-seller-field { width: 100%; }
+  .success-seller-menu { position: static; width: 100%; margin-top: 6px; }
+}
