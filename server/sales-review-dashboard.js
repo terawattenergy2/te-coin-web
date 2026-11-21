@@ -1,5 +1,4 @@
 (() => {
-  const companies = ['มาร์เวล', 'เทระวัตต์ (รวมเอโซลาร์)', 'ศิวาโซลาร์', 'เฟรน สโตน'];
   const matchText = text => String(text ?? '').normalize('NFKC').toLowerCase().trim();
   const matchesTerms = (label, query) => matchText(query).split(/\s+/).every(term => matchText(label).includes(term));
   const keywords = new Set(R.flatMap(row => [row[6], row[3], row[4], row[1]]).filter(Boolean));
@@ -19,27 +18,29 @@
   section.className = 'product-analysis sales-dashboard';
   section.innerHTML = `
     <div class="dashboard-heading"><h2>ภาพรวมยอดขาย</h2>
-    <label class="dashboard-frequency">ช่วงเวลา<select id="dashboardPeriod">
-      <option value="month">รายเดือน</option><option value="week">รายสัปดาห์ (จันทร์–อาทิตย์)</option>
-    </select></label>
-    </div>
-    <div id="dashboardKpis" class="dashboard-kpis"></div>
-    <div class="dashboard-grid">
-      <article class="dashboard-panel"><h3>แนวโน้มยอดขาย</h3><div id="dashboardTrend"></div></article>
-      <article class="dashboard-panel"><h3>ยอดขายตามหมวดสินค้า</h3><div id="dashboardCategories"></div></article>
-    </div>
-    <div id="dashboardMissing" class="muted" role="status"></div>
-
-    <div class="dashboard-rankings">
-      <div class="dashboard-panel"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><div id="dashboardCustomers"></div></div>
-      <div class="dashboard-panel"><h3>เซลส์ขายสูงสุด 10 อันดับตามบริษัท</h3>
-        <label>บริษัท<select id="dashboardCompany"><option value="">ทั้งหมด</option>
-          ${companies.map(company => `<option>${E(company)}</option>`).join('')}
+      <div class="dashboard-actions">
+        <label class="dashboard-frequency">ช่วงเวลา<select id="dashboardPeriod">
+          <option value="month">รายเดือน</option><option value="week">รายสัปดาห์ (จันทร์–อาทิตย์)</option>
+          <option value="year">รายปี</option>
         </select></label>
-        <div id="dashboardSellers"></div>
+        <button type="button" id="dashboardExport">ส่งออก Excel ทั้งหมด</button>
       </div>
     </div>
-    <article class="dashboard-panel"><h3>ยอดขายของสี่บริษัทตามช่วงเวลา</h3><div id="dashboardCompanies"></div></article>`;
+    <div id="dashboardKpis" class="dashboard-kpis"></div>
+    <div id="dashboardMissing" class="muted" role="status"></div>
+    <div class="dashboard-grid">
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>แนวโน้มยอดขาย</h3><button type="button" data-chart="trend">ดูรายละเอียด</button></div><div id="dashboardTrend"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ยอดขายตามหมวดสินค้า</h3><button type="button" data-chart="categories">ดูรายละเอียด</button></div><div id="dashboardCategories"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><button type="button" data-chart="customers">ดูรายละเอียด</button></div><div id="dashboardCustomers"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3><button type="button" data-chart="sellers">ดูรายละเอียด</button></div><div id="dashboardSellers"></div></article>
+    </div>
+    <dialog id="dashboardDetail" class="dashboard-detail" aria-labelledby="dashboardDetailTitle">
+      <div class="dialog-head"><h2 id="dashboardDetailTitle"></h2>
+        <div class="dashboard-actions"><button type="button" id="dashboardDetailExport">ส่งออก Excel</button>
+        <form method="dialog"><button>กลับแดชบอร์ด</button></form></div>
+      </div>
+      <div id="dashboardDetailBody"></div>
+    </dialog>`;
   const disclosure = document.createElement('details');
   disclosure.className = 'sales-dashboard-disclosure';
   disclosure.innerHTML = '<summary>แดชบอร์ดและยอดขายตามช่วงเวลา</summary>';
@@ -47,19 +48,12 @@
   tabs.parentElement.before(disclosure);
 
   function period(date) {
-    if ($('dashboardPeriod').value === 'month') return date.slice(0, 7);
+    const mode = $('dashboardPeriod').value;
+    if (mode === 'year') return date.slice(0, 4);
+    if (mode === 'month') return date.slice(0, 7);
     const monday = new Date(date + 'T00:00:00Z');
     monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
     return monday.toISOString().slice(0, 10);
-  }
-
-  function companyOf(row) {
-    const issuer = matchText(row[20]).replace(/[\s.•-]/g, '');
-    if (/มาร์เวล|marvel/.test(issuer)) return companies[0];
-    if (/เทระวัตต์|เทราวัตต์|terawatt|เอโซลาร์|asolar/.test(issuer)) return companies[1];
-    if (/ศิวาโซลาร์|sivasolar|siwasolar/.test(issuer)) return companies[2];
-    if (/เฟรน(?:ด์)?สโตน|fren(?:d)?stone/.test(issuer)) return companies[3];
-    return '';
   }
 
   function table(headings, rows) {
@@ -68,41 +62,53 @@
       <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${E(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
 
-  function bars(groups, labelOf, colorOf = () => 0) {
+  function bars(groups, labelOf) {
     if (!groups.length) return '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
     const max = groups.reduce((highest, group) => Math.max(highest, Math.abs(group.amount)), 1);
     return `<ol class="analysis-chart dashboard-chart">${groups.map((group, index) => `
-      <li data-company="${colorOf(group)}"><strong>${E(labelOf(group, index))}</strong>
+      <li><strong>${E(labelOf(group, index))}</strong>
         <span>${money(group.amount)} บาท</span>
         <div class="analysis-track" aria-hidden="true"><span style="width:${100 * Math.abs(group.amount) / max}%"></span></div>
       </li>`).join('')}</ol>`;
   }
 
-  function rank(rows, index) {
-    const groups = aggregate(rows.filter(row => row[index]?.trim()), row => row[index].trim()).slice(0, 10);
-    return bars(groups, (group, i) => `${i + 1}. ${group.key}`);
+  function pie(groups) {
+    const positives = groups.filter(group => group.amount > 0);
+    if (!positives.length) return bars(groups, group => group.key);
+    const palette = ['#2765ce', '#35a6a1', '#8256ce', '#dd8141', '#527ca0', '#b34d8a'];
+    const top = positives.slice(0, palette.length - 1);
+    const remainder = positives.slice(top.length);
+    if (remainder.length) top.push({key: 'หมวดอื่น ๆ', amount: remainder.reduce((sum, group) => sum + group.amount, 0)});
+    const total = positives.reduce((sum, group) => sum + group.amount, 0);
+    let start = 0;
+    const stops = top.map((group, index) => {
+      const stop = `${palette[index]} ${start}% ${start + group.amount / total * 100}%`;
+      start += group.amount / total * 100;
+      return stop;
+    });
+    return `<div class="dashboard-pie">
+      <div class="dashboard-donut" style="--slices:${stops.join(',')}" aria-hidden="true"></div>
+      <ul>${top.map((group, index) => `<li><i aria-hidden="true" style="--slice:${palette[index]}"></i>
+        <span>${E(group.key)}</span><strong>${(group.amount / total * 100).toFixed(1)}%</strong></li>`).join('')}</ul>
+    </div>${groups.some(group => group.amount < 0) ? '<p class="dashboard-caption">สัดส่วนคำนวณจากหมวดที่มียอดบวก ยอดติดลบแสดงในรายละเอียด</p>' : ''}`;
   }
 
-  function trend(periods, byPeriod, periodLabel) {
-    const values = periods.map(key => [key, byPeriod.get(key).reduce((sum, row) => sum + value(row), 0)]);
+  function trend(values, expanded = false) {
     if (!values.length) return '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
-    const recent = values.slice(0, 12).reverse();
+    const recent = (expanded ? [...values] : values.slice(0, 12)).reverse();
     const max = Math.max(1, ...recent.map(([, amount]) => amount));
     const min = Math.min(0, ...recent.map(([, amount]) => amount));
     const scale = max - min;
     return `<p class="dashboard-caption">${recent[0][0]} ถึง ${recent.at(-1)[0]} · บาท</p>
-      <div class="dashboard-columns" aria-label="กราฟแนวโน้มยอดขาย">
+      <div class="dashboard-columns" style="--periods:${recent.length}" aria-label="กราฟแนวโน้มยอดขาย">
       ${recent.map(([key, amount]) => `<div class="dashboard-point">
         <div class="dashboard-plot">
           <button type="button" class="dashboard-column" aria-label="${key} ${money(amount)} บาท"
             style="--bottom:${100 * (Math.min(0, amount) - min) / scale}%;--height:${100 * Math.abs(amount) / scale}%">
             <span>${key}<br>${money(amount)} บาท</span>
           </button></div>
-        <small>${key.slice(5)}</small></div>`).join('')}
-      </div>
-      <details><summary>ดูยอดขายทุกช่วงเวลา</summary>
-        ${table([periodLabel, 'ยอดขาย (บาท)'], values.map(([key, amount]) => [key, money(amount)]))}
-      </details>`;
+        <small>${key.length === 4 ? key : key.slice(5)}</small></div>`).join('')}
+      </div>`;
   }
 
   const filterSummary = document.createElement('span');
@@ -126,19 +132,41 @@
   }
 
   let selectedCategoryPeriod;
+  let reports;
+  let detailKey;
+  const rankHeaders = label => ['อันดับ', label, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'];
+  const rankRows = groups => groups.map((group, index) => [index + 1, group.key, group.amount, group.docs.size, group.lines]);
+  const chartLabels = {
+    trend: 'แนวโน้มยอดขาย', categories: 'ยอดขายตามหมวดสินค้า',
+    customers: 'ลูกค้าซื้อสูงสุด 10 อันดับ', sellers: 'เซลส์ขายสูงสุด 10 อันดับ',
+  };
+
+  function showDetail(key) {
+    detailKey = key;
+    const report = reports[key];
+    $('dashboardDetailTitle').textContent = chartLabels[key];
+    $('dashboardDetailBody').innerHTML = `<div class="dashboard-detail-chart">${report.chart}</div>
+      ${table(report.headers, report.rows.map(row => row.map((cell, index) => index === report.amountIndex ? money(cell) : cell)))}`;
+    const dialog = $('dashboardDetail');
+    if (!dialog.open) dialog.showModal();
+    $('dashboardDetailBody').scrollTop = 0;
+  }
+
+  function exportReports(keys) {
+    const tabs = keys.map(key => {
+      const {headers, rows} = reports[key];
+      return [chartLabels[key], [headers, ...rows], headers.map(() => 29)];
+    });
+    downloadSalesWorkbook(tabs, 'te-crm-dashboard.xlsx');
+  }
+
   function render() {
     if (!disclosure.open) return;
     if (filterSummary.isConnected) renderFilterSummary();
     const known = filtered.filter(row => value(row) != null);
     const dated = known.filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2]) && Number.isFinite(Date.parse(row[2])));
-    const unknownCompanies = known.filter(row => !companyOf(row));
-    const notes = [];
-    if (known.length !== filtered.length) notes.push(`${num(filtered.length - known.length)} รายการรอตรวจยอด`);
-    if (unknownCompanies.length) notes.push(`${num(new Set(unknownCompanies.map(row => row[0])).size)} ใบเสร็จยังระบุบริษัทผู้ออกไม่ได้`);
-    const available = new Set(R.map(companyOf));
-    const missing = companies.filter(company => !available.has(company));
-    if (missing.length) notes.push('ยังไม่มีใบเสร็จในแหล่งข้อมูลสำหรับ ' + missing.join(', '));
-    $('dashboardMissing').textContent = notes.join(' · ');
+    $('dashboardMissing').textContent = known.length !== filtered.length
+      ? `${num(filtered.length - known.length)} รายการรอตรวจยอด` : '';
 
     const byPeriod = new Map();
     for (const row of dated) {
@@ -147,52 +175,64 @@
       byPeriod.get(key).push(row);
     }
     const periods = [...byPeriod.keys()].sort().reverse();
-    const periodLabel = $('dashboardPeriod').value === 'week' ? 'สัปดาห์เริ่มวันที่' : 'เดือน';
+    const periodLabel = {week: 'สัปดาห์เริ่มวันที่', month: 'เดือน', year: 'ปี'}[$('dashboardPeriod').value];
+    const values = periods.map(key => [key, byPeriod.get(key).reduce((sum, row) => sum + value(row), 0)]);
     const kpis = [
-      [$('amountLabel').textContent, $('amount').textContent],
-      ['ใบเสร็จที่ตรงตัวกรอง', $('docCount').textContent],
-      ['ลูกค้า', num(new Set(known.map(row => row[4]?.trim()).filter(Boolean)).size)],
-      ['เซลส์ตามเอกสาร', $('sellerCount').textContent],
+      [$('amountLabel').textContent, known.reduce((sum, row) => sum + value(row), 0)],
+      ['ใบเสร็จที่ตรงตัวกรอง', new Set(filtered.map(row => row[0])).size],
+      ['ลูกค้า', new Set(known.map(row => row[4]?.trim()).filter(Boolean)).size],
+      ['เซลส์ตามเอกสาร', new Set(filtered.map(row => row[3])).size],
     ];
-    $('dashboardKpis').innerHTML = kpis.map(([label, total]) =>
-      `<div class="dashboard-kpi"><small>${E(label)}</small><strong>${E(total)}</strong></div>`).join('');
-    $('dashboardTrend').innerHTML = trend(periods, byPeriod, periodLabel);
+    $('dashboardKpis').innerHTML = kpis.map(([label, total], index) =>
+      `<div class="dashboard-kpi"><small>${E(label)}</small><strong>${index ? num(total) : money(total)}</strong></div>`).join('');
+    $('dashboardTrend').innerHTML = trend(values);
     const categories = new Map(periods.map(key => [key, aggregate(byPeriod.get(key), row => row[8])]));
+    const customers = aggregate(known.filter(row => row[4]?.trim()), row => row[4].trim());
+    const sellers = aggregate(known.filter(row => row[3]?.trim()), row => row[3].trim());
+    reports = {
+      trend: {headers: [periodLabel, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'], amountIndex: 1,
+        rows: values.map(([key, amount]) => [key, amount, new Set(byPeriod.get(key).map(row => row[0])).size, byPeriod.get(key).length]),
+        chart: trend(values, true)},
+      categories: {headers: [periodLabel, 'หมวดสินค้า', 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'], amountIndex: 2,
+        rows: periods.flatMap(key => categories.get(key).map(group => [key, group.key, group.amount, group.docs.size, group.lines]))},
+      customers: {headers: rankHeaders('ลูกค้า'), rows: rankRows(customers), amountIndex: 2},
+      sellers: {headers: rankHeaders('เซลส์'), rows: rankRows(sellers), amountIndex: 2},
+    };
+    for (const [key, groups] of [['customers', customers], ['sellers', sellers]]) {
+      const label = (group, index) => `${index + 1}. ${group.key}`;
+      reports[key].chart = bars(groups.slice(0, 10), label);
+      $(key === 'customers' ? 'dashboardCustomers' : 'dashboardSellers').innerHTML = reports[key].chart;
+    }
     $('dashboardCategories').innerHTML = periods.length ? `
-      <label class="dashboard-frequency">ช่วงเวลาที่แสดงในกราฟ<select id="dashboardCategoryPeriod">
+      <label class="dashboard-frequency">ช่วงเวลาของกราฟหมวดสินค้า<select id="dashboardCategoryPeriod">
         ${periods.map(key => `<option value="${E(key)}">${E(key)}</option>`).join('')}
       </select></label>
-      <div id="dashboardCategoryChart"></div>
-      <details><summary>ดูตารางยอดขายทุกช่วงเวลา</summary>
-        ${table([periodLabel, 'หมวดสินค้า', 'ยอดขาย (บาท)'], periods.flatMap(key =>
-          categories.get(key).map(group => [key, group.key, money(group.amount)])))}
-      </details>` : '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
+      <div id="dashboardCategoryChart"></div>` : '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
     const categoryPeriod = $('dashboardCategoryPeriod');
+    const draw = () => {
+      selectedCategoryPeriod = categoryPeriod?.value;
+      const groups = categories.get(selectedCategoryPeriod) || [];
+      reports.categories.chart = pie(groups);
+      if (categoryPeriod) $('dashboardCategoryChart').innerHTML = reports.categories.chart;
+    };
     if (categoryPeriod) {
       if (categories.has(selectedCategoryPeriod)) categoryPeriod.value = selectedCategoryPeriod;
-      const draw = () => {
-        selectedCategoryPeriod = categoryPeriod.value;
-        $('dashboardCategoryChart').innerHTML = bars(categories.get(selectedCategoryPeriod), group => group.key);
-      };
       categoryPeriod.onchange = draw;
-      draw();
     }
-    $('dashboardCustomers').innerHTML = rank(known, 4);
-    const company = $('dashboardCompany').value;
-    if (company) {
-      $('dashboardSellers').innerHTML = rank(known.filter(row => companyOf(row) === company), 3);
-    } else {
-      $('dashboardSellers').innerHTML = ['รวมรายการตามตัวกรอง', ...companies].map((label, index) =>
-        `<details${index === 0 ? ' open' : ''}><summary>${E(label)}</summary>
-        ${rank(index ? known.filter(row => companyOf(row) === label) : known, 3)}</details>`).join('');
-    }
-
-    const groups = periods.flatMap(key => aggregate(byPeriod.get(key).filter(companyOf), companyOf)
-      .map(group => ({ ...group, period: key })));
-    $('dashboardCompanies').innerHTML = groups.length
-      ? bars(groups, group => `${group.period} · ${group.key}`, group => companies.indexOf(group.key))
-      : '<p class="muted">ยังไม่มีข้อมูลบริษัทผู้ออกใบเสร็จสำหรับแสดงกราฟ</p>';
+    draw();
+    $('dashboardExport').onclick = () => {
+      const summary = ['สรุปยอดขาย', [['ตัวชี้วัด', 'ค่า'], ...kpis, ['ช่วงเวลา', $('dashboardPeriod').selectedOptions[0].textContent],
+        ['ตัวกรอง', filterSummary.textContent.trim().replace(/\s+/g, ' ')]], [48, 66]];
+      const tabs = Object.entries(reports).map(([key, {headers, rows}]) => [chartLabels[key], [headers, ...rows], headers.map(() => 29)]);
+      downloadSalesWorkbook([summary, ...tabs], 'te-crm-dashboard.xlsx', true);
+    };
   }
+
+  section.addEventListener('click', event => {
+    const chart = event.target.closest('[data-chart]')?.dataset.chart;
+    if (chart) showDetail(chart);
+  });
+  $('dashboardDetailExport').onclick = () => exportReports([detailKey]);
 
   disclosure.addEventListener('toggle', render);
   if (parent !== window) {
@@ -220,7 +260,6 @@
     });
   }
   $('dashboardPeriod').onchange = render;
-  $('dashboardCompany').onchange = render;
   const updateReport = update;
   update = () => { updateReport(); render(); };
 })();

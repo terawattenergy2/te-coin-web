@@ -1,4 +1,4 @@
-(() => {
+const downloadSalesWorkbook = (() => {
   const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const encoder = new TextEncoder();
   const xml = text => E(String(text).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, ''));
@@ -69,8 +69,7 @@
     return `<worksheet xmlns="${spreadsheet}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${columns}</cols><sheetData>${data}</sheetData><autoFilter ref="A1:${last}${rows.length}"/></worksheet>`;
   }
 
-  function workbook() {
-    const names = ['ยอดตามเซลส์', 'ยอดตามสินค้า', 'รายการขาย'];
+  function salesTabs() {
     const amount = $('amountLabel').textContent;
     const sellers = [['ชื่อเซลส์', 'ใบเสร็จรับเงิน', 'รายการ', 'ชื่อสินค้า', amount],
       ...aggregate(filtered, row => row[3]).map(item => [
@@ -89,6 +88,15 @@
         row[2], row[1], row[3], row[4], row[6], row[7], row[8], row[9], row[10], row[11], row[12],
         statusNames[row[13]] || row[13], row[17],
       ])];
+    return [
+      ['ยอดตามเซลส์', sellers, [36, 18, 14, 14, 42]],
+      ['ยอดตามสินค้า', products, [48, 26, 34, 24, 18, 42]],
+      ['รายการขาย', lines, [15, 22, 32, 40, 55, 24, 32, 12, 16, 24, 26, 22, 48]],
+    ];
+  }
+
+  function makeWorkbook(tabs) {
+    const names = tabs.map(([name]) => name);
     const refs = (type, targets) => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${targets.map((target, i) => `<Relationship Id="rId${i + 1}" Type="${relationships}/${type}" Target="${target}"/>`).join('')}</Relationships>`;
     const worksheetPaths = names.map((_, i) => `worksheets/sheet${i + 1}.xml`);
     const styles = '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>';
@@ -99,10 +107,19 @@
       '_rels/.rels': refs('officeDocument', ['xl/workbook.xml']),
       'xl/workbook.xml': `<workbook xmlns="${spreadsheet}" xmlns:r="${relationships}"><bookViews><workbookView/></bookViews><sheets>${names.map((name, i) => `<sheet name="${xml(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
       'xl/_rels/workbook.xml.rels': refs('worksheet', worksheetPaths),
-      [paths[1]]: sheet(sellers, [36, 18, 14, 14, 42]),
-      [paths[2]]: sheet(products, [48, 26, 34, 24, 18, 42]),
-      [paths[3]]: sheet(lines, [15, 22, 32, 40, 55, 24, 32, 12, 16, 24, 26, 22, 48]),
+      ...Object.fromEntries(tabs.map(([, rows, widths], index) => [paths[index + 1], sheet(rows, widths)])),
     });
+  }
+
+  function download(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
   $('exportExcel').addEventListener('click', () => {
@@ -110,14 +127,9 @@
       $('exportStatus').textContent = 'ไม่มีรายการที่ตรงตัวกรองสำหรับส่งออก';
       return;
     }
-    const url = URL.createObjectURL(workbook());
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'teracoin-sales.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    download(makeWorkbook(salesTabs()), 'teracoin-sales.xlsx');
     $('exportStatus').textContent = `ส่งออก ${num(filtered.length)} รายการตามตัวกรอง`;
   });
+  return (tabs, filename, includeSales = false) =>
+    download(makeWorkbook(includeSales ? [...tabs, ...salesTabs()] : tabs), filename);
 })();

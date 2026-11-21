@@ -1,5 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "functions": {"api/report.mjs": {"maxDuration": 300}}
+  "functions": {
+    "api/report.mjs": {
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/te-crm-management",
+      "destination": "/index.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/te-crm-management",
+      "permanent": false
+    }
+  ]
 }
