@@ -63,11 +63,22 @@
       <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${E(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
 
-  function rank(rows, index) {
-    return aggregate(rows.filter(row => row[index]?.trim()), row => row[index].trim())
-      .slice(0, 10).map((row, i) => [i + 1, row.key, money(row.amount)]);
+  function bars(groups, labelOf, colorOf = () => 0) {
+    if (!groups.length) return '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
+    const max = groups.reduce((highest, group) => Math.max(highest, Math.abs(group.amount)), 1);
+    return `<ol class="analysis-chart dashboard-chart">${groups.map((group, index) => `
+      <li data-company="${colorOf(group)}"><strong>${E(labelOf(group, index))}</strong>
+        <span>${money(group.amount)} บาท</span>
+        <div class="analysis-track" aria-hidden="true"><span style="width:${100 * Math.abs(group.amount) / max}%"></span></div>
+      </li>`).join('')}</ol>`;
   }
 
+  function rank(rows, index) {
+    const groups = aggregate(rows.filter(row => row[index]?.trim()), row => row[index].trim()).slice(0, 10);
+    return bars(groups, (group, i) => `${i + 1}. ${group.key}`);
+  }
+
+  let selectedCategoryPeriod;
   function render() {
     if (!disclosure.open) return;
     const known = filtered.filter(row => value(row) != null);
@@ -89,25 +100,40 @@
     }
     const periods = [...byPeriod.keys()].sort().reverse();
     const periodLabel = $('dashboardPeriod').value === 'week' ? 'สัปดาห์เริ่มวันที่' : 'เดือน';
-    $('dashboardCategories').innerHTML = table([periodLabel, 'หมวดสินค้า', 'ยอดขาย (บาท)'], periods.flatMap(key =>
-      aggregate(byPeriod.get(key), row => row[8]).map(group => [key, group.key, money(group.amount)])));
-    $('dashboardCustomers').innerHTML = table(['อันดับ', 'ลูกค้า', 'ยอดซื้อ (บาท)'], rank(known, 4));
+    const categories = new Map(periods.map(key => [key, aggregate(byPeriod.get(key), row => row[8])]));
+    $('dashboardCategories').innerHTML = periods.length ? `
+      <label class="dashboard-frequency">ช่วงเวลาที่แสดงในกราฟ<select id="dashboardCategoryPeriod">
+        ${periods.map(key => `<option value="${E(key)}">${E(key)}</option>`).join('')}
+      </select></label>
+      <div id="dashboardCategoryChart"></div>
+      <details><summary>ดูตารางยอดขายทุกช่วงเวลา</summary>
+        ${table([periodLabel, 'หมวดสินค้า', 'ยอดขาย (บาท)'], periods.flatMap(key =>
+          categories.get(key).map(group => [key, group.key, money(group.amount)])))}
+      </details>` : '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
+    const categoryPeriod = $('dashboardCategoryPeriod');
+    if (categoryPeriod) {
+      if (categories.has(selectedCategoryPeriod)) categoryPeriod.value = selectedCategoryPeriod;
+      const draw = () => {
+        selectedCategoryPeriod = categoryPeriod.value;
+        $('dashboardCategoryChart').innerHTML = bars(categories.get(selectedCategoryPeriod), group => group.key);
+      };
+      categoryPeriod.onchange = draw;
+      draw();
+    }
+    $('dashboardCustomers').innerHTML = rank(known, 4);
     const company = $('dashboardCompany').value;
     if (company) {
-      $('dashboardSellers').innerHTML = table(['อันดับ', 'เซลส์', 'ยอดขาย (บาท)'], rank(known.filter(row => companyOf(row) === company), 3));
+      $('dashboardSellers').innerHTML = rank(known.filter(row => companyOf(row) === company), 3);
     } else {
       $('dashboardSellers').innerHTML = ['รวมรายการตามตัวกรอง', ...companies].map((label, index) =>
         `<details${index === 0 ? ' open' : ''}><summary>${E(label)}</summary>
-        ${table(['อันดับ', 'เซลส์', 'ยอดขาย (บาท)'], rank(index ? known.filter(row => companyOf(row) === label) : known, 3))}</details>`).join('');
+        ${rank(index ? known.filter(row => companyOf(row) === label) : known, 3)}</details>`).join('');
     }
 
     const groups = periods.flatMap(key => aggregate(byPeriod.get(key).filter(companyOf), companyOf)
       .map(group => ({ ...group, period: key })));
-    const scale = Math.max(1, ...groups.map(group => Math.abs(group.amount)));
     $('dashboardCompanies').innerHTML = groups.length
-      ? `<ul class="analysis-chart">${groups.map(group => `<li data-company="${companies.indexOf(group.key)}"><strong>${E(group.period)} · ${E(group.key)}</strong>
-        <span>${money(group.amount)} บาท</span>
-        <div class="analysis-track" aria-hidden="true"><span style="width:${100 * Math.abs(group.amount) / scale}%"></span></div></li>`).join('')}</ul>`
+      ? bars(groups, group => `${group.period} · ${group.key}`, group => companies.indexOf(group.key))
       : '<p class="muted">ยังไม่มีข้อมูลบริษัทผู้ออกใบเสร็จสำหรับแสดงกราฟ</p>';
   }
 

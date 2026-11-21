@@ -96,3 +96,6 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 #dashboardCompanies [data-company="1"] .analysis-track span { background: #18745f; }
 #dashboardCompanies [data-company="2"] .analysis-track span { background: #8053a4; }
 #dashboardCompanies [data-company="3"] .analysis-track span { background: #ab5518; }
+
+.dashboard-chart { max-height: 440px; overflow: auto; padding: 0; margin: 10px 0 16px; }
+.dashboard-chart li { padding: 6px 8px; }
