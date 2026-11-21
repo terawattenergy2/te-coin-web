@@ -1,7 +1,6 @@
 const $ = id => document.getElementById(id);
 const outcomes = {won: 'ปิดได้', lost: 'ปิดไม่ได้', open: 'ยังเปิดอยู่'};
 const missingSeller = 'ไม่ระบุเซลส์';
-const sellerOf = row => row.seller || missingSeller;
 const thaiNumber = new Intl.NumberFormat('th-TH');
 const percent = new Intl.NumberFormat('th-TH', {style: 'percent', maximumFractionDigits: 1});
 const bangkokDate = new Intl.DateTimeFormat('th-TH', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok'});
@@ -27,7 +26,8 @@ function counts(rows) {
   return result;
 }
 
-export function createSaleSuccess(request) {
+export function createSaleSuccess(request, canonicalSeller = name => name) {
+  const sellerOf = row => canonicalSeller(row.seller) || missingSeller;
   let data;
   let pending = false;
   let epoch = 0;
@@ -101,9 +101,7 @@ export function createSaleSuccess(request) {
       const years = [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse();
       year.replaceChildren(year.options[0], ...years.map(value => new Option(value, value)));
       if (years.includes(selectedYear)) year.value = selectedYear;
-      sellerNames = [...new Set(data.rows.map(sellerOf))].sort(collator.compare);
-      for (const name of selectedSellers) if (!sellerNames.includes(name)) selectedSellers.delete(name);
-      renderSellerOptions();
+      updateSellerOptions();
       render();
       status.textContent = `ข้อมูล ณ ${bangkokDate.format(new Date(data.loadedAt))} (เวลาไทย)`;
     } catch (error) {
@@ -114,6 +112,15 @@ export function createSaleSuccess(request) {
         refresh.disabled = false;
       }
     }
+  }
+
+  function updateSellerOptions() {
+    if (!data) return;
+    const nextSelected = [...selectedSellers].map(canonicalSeller);
+    sellerNames = [...new Set(data.rows.map(sellerOf))].sort(collator.compare);
+    selectedSellers.clear();
+    for (const name of nextSelected) if (sellerNames.includes(name)) selectedSellers.add(name);
+    renderSellerOptions();
   }
 
   function renderSellerOptions() {
@@ -159,6 +166,7 @@ export function createSaleSuccess(request) {
 
   return {
     open() { if (!data) load(); },
+    regroup() { updateSellerOptions(); render(); },
     reset() {
       epoch++;
       data = undefined;

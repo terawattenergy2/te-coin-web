@@ -1,5 +1,7 @@
 const upstream = 'https://te-coin-web.vercel.app';
 const reportRoutes = new Map([
+  ['seller-groups', ['GET', '/seller-groups']],
+  ['confirm-sellers', ['POST', '/seller-groups']],
   ['sale-success', ['GET', '/sale-success']],
   ['audit', ['GET', '/product-audit']],
   ['report', ['GET', '']],
@@ -26,7 +28,14 @@ export default async function handler(req, res) {
     source.searchParams.set('id', id);
   }
   try {
-    const response = await fetch(source, {method: req.method, headers: {Authorization: authorization},
+    const headers = {Authorization: authorization};
+    let body;
+    if (route === 'confirm-sellers') {
+      headers['Content-Type'] = 'application/json';
+      body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+      if (body.length > 24000) return res.status(413).json({message: 'ข้อมูลการรวมชื่อมีขนาดเกินกำหนด'});
+    }
+    const response = await fetch(source, {method: req.method, headers, body,
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(280000)});
     res.statusCode = response.status;
     res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');

@@ -16,6 +16,7 @@
 <button type="button" data-view="sales" aria-pressed="true">ยอดขายตามเซลส์</button>
 <button type="button" data-view="dashboard" aria-pressed="false">แดชบอร์ด</button>
 <button type="button" data-view="success" aria-pressed="false">Sale Success</button>
+<button type="button" data-view="seller-groups" aria-pressed="false">ตรวจสอบชื่อเซลส์</button>
 <button type="button" data-view="audit" aria-pressed="false">ตรวจสอบการจัดกลุ่มสินค้า</button>
 </nav>
 </div>
@@ -39,6 +40,27 @@
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads" hidden></iframe>
+</section>
+<section id="seller-groups" class="seller-review" hidden aria-label="ตรวจสอบชื่อเซลส์">
+<p>เลือกชื่อที่เป็นคนเดียวกัน ตั้งชื่อหลัก แล้วกดยืนยันเพื่อรวมยอดทั้งสามรายงาน</p>
+<p id="seller-review-status" role="status"></p>
+<div class="seller-review-grid">
+<div>
+<h2>ชื่อจากเอกสาร</h2>
+<label>ค้นหาชื่อ<input id="seller-review-search" type="search"></label>
+<div id="seller-review-names" class="seller-review-list" role="group" aria-label="ชื่อเซลส์จากเอกสาร"></div>
+</div>
+<div>
+<h2>ชื่อที่เลือก</h2>
+<p id="seller-review-selected"></p>
+<label>ชื่อหลัก<select id="seller-review-canonical"></select></label>
+<div class="toolbar"><button type="button" id="seller-review-clear">ล้างการเลือก</button><button type="button" id="seller-review-confirm" disabled>ยืนยันรวมชื่อ</button></div>
+<h2>ชื่อคล้ายกันสำหรับตรวจสอบ</h2>
+<div id="seller-review-suggestions" class="seller-review-list"></div>
+</div>
+</div>
+<h2>กลุ่มที่ยืนยันแล้ว</h2>
+<ul id="seller-review-confirmed"></ul>
 </section>
 <section id="success" hidden aria-label="Sale Success">
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>

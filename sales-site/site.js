@@ -1,3 +1,4 @@
+import {createSellerReview} from './seller-review.js';
 import {createSaleSuccess} from './sale-success.js';
 import {authUrl, publishableKey} from './auth-config.js';
 
@@ -13,7 +14,55 @@ let auditBusy = false;
 const views = $('views');
 const audit = $('audit');
 const success = $('success');
-const saleSuccess = createSaleSuccess(async () => json(await reportRequest('sale-success')));
+const sellerGroupsPanel = $('seller-groups');
+let sellerAliases = new Map();
+let rawReport;
+let quotePending;
+let quoteNamesLoaded = false;
+let groupReadSucceeded = false;
+const canonicalSeller = name => sellerAliases.get(String(name ?? '').trim()) ?? name;
+const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller);
+const sellerReview = createSellerReview(async payload => json(await reportRequest('confirm-sellers', 'POST', undefined, payload)), updateGroups);
+
+async function loadQuotes() {
+  if (quotePending) return quotePending;
+  const epoch = loginEpoch;
+  const request = reportRequest('sale-success').then(json).then(data => {
+    if (epoch === loginEpoch) {
+      quoteNamesLoaded = true;
+      sellerReview.addNames(data.rows.map(row => row.seller));
+      sellerReview.status('');
+    }
+    return data;
+  }).finally(() => { if (quotePending === request) quotePending = undefined; });
+  quotePending = request;
+  return request;
+}
+function updateGroups(groups) {
+  sellerAliases = new Map(groups.flatMap(group => group.names.map(name => [name, group.canonical])));
+  sellerReview.showGroups(groups);
+  saleSuccess.regroup();
+  if (rawReport) setReportFrame();
+}
+async function reviewSellerNames() {
+  const epoch = loginEpoch;
+  if (!groupReadSucceeded) {
+    try {
+      const {groups} = await json(await reportRequest('seller-groups'));
+      if (epoch !== loginEpoch) return;
+      groupReadSucceeded = true;
+      updateGroups(groups);
+    } catch (error) {
+      if (epoch === loginEpoch) sellerReview.status(error.message);
+      return;
+    }
+  }
+  if (!quoteNamesLoaded) {
+    sellerReview.status('กำลังโหลดชื่อเพิ่มเติมจากใบเสนอราคา ใช้ชื่อจากใบเสร็จระหว่างรอได้');
+    try { await loadQuotes(); }
+    catch (error) { if (epoch === loginEpoch) sellerReview.status(error.message); }
+  }
+}
 const labels = new Map([
   ['matched', 'จับคู่แล้ว'],
   ['flow-only', 'มีใน FlowAccount เท่านั้น'],
@@ -32,12 +81,15 @@ function showView(view) {
   const checking = view === 'audit';
   $('title').textContent = views.querySelector('[aria-pressed="true"]').textContent;
   const measuring = view === 'success';
-  $('report').hidden = checking || measuring;
+  const grouping = view === 'seller-groups';
+  $('report').hidden = checking || measuring || grouping;
+  sellerGroupsPanel.hidden = !grouping;
   success.hidden = !measuring;
   audit.hidden = !checking;
   if (checking && !auditRows) loadAudit();
   if (measuring) saleSuccess.open();
-  if (!checking && !measuring) showReportView();
+  if (grouping) reviewSellerNames();
+  if (!checking && !measuring && !grouping) showReportView();
 }
 
 function showReportView() {
@@ -117,7 +169,7 @@ function tokenRequest(grant, body) {
   return fetch(authUrl + '/auth/v1/token?grant_type=' + grant, {method:'POST',
     headers:{apikey:publishableKey,'Content-Type':'application/json'},body:JSON.stringify(body)}).then(json);
 }
-async function reportRequest(route, method = 'GET', id) {
+async function reportRequest(route, method = 'GET', id, payload) {
   if (!session?.access_token) throw Error('กรุณาเข้าสู่ระบบ');
   if (session.expires_at * 1000 <= Date.now() + 30000) {
     const epoch = loginEpoch;
@@ -128,7 +180,9 @@ async function reportRequest(route, method = 'GET', id) {
   }
   const params = new URLSearchParams({route});
   if (id) params.set('id', id);
-  return fetch('/api/report?' + params, {method, headers:{Authorization:'Bearer '+session.access_token}, cache:'no-store'});
+  const headers = {Authorization:'Bearer '+session.access_token};
+  if (payload) headers['Content-Type'] = 'application/json';
+  return fetch('/api/report?' + params, {method, headers, body:payload && JSON.stringify(payload), cache:'no-store'});
 }
 function showLogin(message = '') {
   loginEpoch++;
@@ -140,7 +194,11 @@ function showLogin(message = '') {
   $('audit-rows').replaceChildren();
   $('audit-search').value = $('audit-filter').value = '';
   $('title').textContent = 'ยอดขายตามเซลส์';
-  views.hidden = audit.hidden = success.hidden = true;
+  views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = true;
+  rawReport = quotePending = undefined;
+  quoteNamesLoaded = groupReadSucceeded = false;
+  sellerAliases.clear();
+  sellerReview.reset();
   saleSuccess.reset();
   setLoginVisible(true);
   $('logout').hidden = true;
@@ -150,21 +208,48 @@ function showLogin(message = '') {
   frame.hidden = true;
   status(message);
 }
+const datasetPattern = /(<script id="dataset" type="application\/json">)([\s\S]*?)(<\/script>)/;
+function setReportFrame() {
+  const {html, dataset} = rawReport;
+  const rows = dataset.rows.map(row => {
+    const name = canonicalSeller(row[3]);
+    if (name === row[3]) return row;
+    const grouped = [...row];
+    grouped[3] = name;
+    return grouped;
+  });
+  const payload = JSON.stringify({...dataset, rows}).replace(/</g, '\\u003c');
+  const groupedHtml = html.replace(datasetPattern, (_, start, original, end) => start + payload + end);
+  frame.srcdoc = groupedHtml.replace(/<head>/i, '<head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'">');
+}
 async function openReport() {
   const epoch = loginEpoch;
   try {
-    const response = await reportRequest('report');
+    const [response, groupResult] = await Promise.all([
+      reportRequest('report'),
+      reportRequest('seller-groups').then(json).catch(error => ({error})),
+    ]);
     if (!response.ok) await json(response);
     const html = await response.text();
     if (epoch !== loginEpoch) return;
-    if (!html.includes('<script id="dataset" type="application/json">')) throw Error('ไม่พบข้อมูลรายงาน');
-    frame.srcdoc = html.replace(/<head>/i, '<head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'">');
+    const match = html.match(datasetPattern);
+    if (!match) throw Error('ไม่พบข้อมูลรายงาน');
+    const dataset = JSON.parse(match[2]);
+    if (groupResult.groups) {
+      groupReadSucceeded = true;
+      sellerAliases = new Map(groupResult.groups.flatMap(group => group.names.map(name => [name, group.canonical])));
+      sellerReview.showGroups(groupResult.groups);
+      saleSuccess.regroup();
+    }
+    rawReport = {html, dataset};
+    sellerReview.addNames(dataset.rows.map(row => row[3]));
+    setReportFrame();
     frame.hidden = false;
     views.hidden = false;
     showView(selectedView);
     $('logout').hidden = false;
     setLoginVisible(false);
-    status('');
+    status(groupResult.error ? 'โหลดกลุ่มชื่อเซลส์ไม่ได้ ผลอาจยังแยกตามชื่อในเอกสาร' : '');
   } catch (error) {
     if (epoch !== loginEpoch) return;
     if (error.status === 401 || error.status === 403) showLogin(error.message);

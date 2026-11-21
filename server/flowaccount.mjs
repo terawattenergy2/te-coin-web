@@ -1,3 +1,4 @@
+import {createSellerGroupStore, parseSellerGroup} from './seller-groups.mjs';
 import {loadSaleSuccess} from './sale-success.mjs';
 import {buildModelSegments, modelKey} from './sales-product-classifier.mjs';
 import http from 'node:http';
@@ -63,6 +64,7 @@ const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-revi
 const hostedReview = createHostedReview({
  flow, url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source,
 });
+const sellerGroups = createSellerGroupStore({url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source});
 const reviewSync = createReviewSync({
  flow, path: reportPath, enabled: environment === 'v1' && Boolean(source),
 });
@@ -403,6 +405,14 @@ export async function handler(req,res){
    const matches = verified.filter(Boolean);
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
+  }
+  if (route === '/sales-review/seller-groups') {
+   if (req.method === 'POST') {
+    const group = parseSellerGroup(await body(req));
+    if (!group) return reply(400, {message: 'เลือกอย่างน้อยสองชื่อและระบุชื่อหลัก'});
+    await sellerGroups.confirm(group, user.id);
+   } else if (req.method !== 'GET') return reply(405, {message: 'วิธีเรียก API ไม่ถูกต้อง'});
+   return reply(200, {groups: await sellerGroups.read()});
   }
   if (req.method === 'GET' && route === '/sales-review/sale-success') {
    if (environment !== 'v1') return reply(503, {message: 'ต้องเชื่อม FlowAccount Production'});
