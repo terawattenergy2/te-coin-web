@@ -88,7 +88,15 @@ $('audit-search').oninput = $('audit-filter').onchange = () => {
 };
 $('audit-refresh').onclick = loadAudit;
 try { session = JSON.parse(sessionStorage.getItem(storageKey)); } catch {}
-const status = text => { $('status').textContent = text; };
+const status = text => {
+  const signingIn = !$('login-panel').hidden;
+  $('login-status').textContent = signingIn ? text : '';
+  $('status').textContent = signingIn ? '' : text;
+};
+function setLoginVisible(visible) {
+  $('login-panel').hidden = !visible;
+  document.body.classList.toggle('login-mode', visible);
+}
 function save(next) {
   session = next;
   if (next) sessionStorage.setItem(storageKey, JSON.stringify(next));
@@ -127,7 +135,7 @@ function showLogin(message = '') {
   $('audit-search').value = $('audit-filter').value = '';
   $('title').textContent = 'ยอดขายตามเซลส์';
   views.hidden = audit.hidden = true;
-  $('login').hidden = false;
+  setLoginVisible(true);
   $('logout').hidden = true;
   $('report').hidden = true;
   document.body.classList.remove('dashboard-detail-open');
@@ -148,13 +156,13 @@ async function openReport() {
     views.hidden = false;
     showView(selectedView);
     $('logout').hidden = false;
-    $('login').hidden = true;
+    setLoginVisible(false);
     status('');
   } catch (error) {
     if (epoch !== loginEpoch) return;
     if (error.status === 401 || error.status === 403) showLogin(error.message);
     else if (session) {
-      $('login').hidden = true;
+      setLoginVisible(false);
       $('report').hidden = false;
       $('logout').hidden = false;
       status(error.message);

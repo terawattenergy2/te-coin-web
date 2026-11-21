@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/site.css">
 <script type="module" src="/site.js"></script>
 </head>
-<body>
+<body class="login-mode">
 <header><strong>CRM</strong><button id="logout" hidden>ออกจากระบบ</button></header>
 <main>
 <div class="page-heading">
@@ -18,12 +18,23 @@
 <button type="button" data-view="audit" aria-pressed="false">ตรวจสอบการจัดกลุ่มสินค้า</button>
 </nav>
 </div>
-<form id="login" hidden>
-<p>เข้าสู่ระบบด้วยบัญชีผู้ดูแล TeraCoin</p>
-<label>อีเมล<input id="email" type="email" autocomplete="username" required></label>
-<label>รหัสผ่าน<input id="password" type="password" autocomplete="current-password" required></label>
+<section id="login-panel" class="login-panel" aria-labelledby="login-title" hidden>
+<div class="login-brand">
+<strong>TERAWATT</strong>
+<p>CRM</p>
+<span>ระบบรายงานยอดขาย</span>
+</div>
+<form id="login" class="login-form" aria-describedby="login-help">
+<div class="login-heading">
+<h1 id="login-title">เข้าสู่ระบบ</h1>
+<p id="login-help">ใช้บัญชีผู้ดูแล TeraCoin</p>
+</div>
+<label for="email">อีเมล<input id="email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+<label for="password">รหัสผ่าน<input id="password" name="password" type="password" autocomplete="current-password" required></label>
 <button type="submit">เข้าสู่ระบบ</button>
+<p id="login-status" role="status"></p>
 </form>
+</section>
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads" hidden></iframe>
