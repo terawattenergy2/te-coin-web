@@ -11,12 +11,5 @@
       "source": "/te-crm-management",
       "destination": "/index.html"
     }
-  ],
-  "redirects": [
-    {
-      "source": "/",
-      "destination": "/te-crm-management",
-      "permanent": false
-    }
   ]
 }
