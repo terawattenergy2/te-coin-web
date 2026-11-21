@@ -21,6 +21,8 @@ for (const [value, label] of labels) $('audit-filter').add(new Option(label, val
 
 function showView(view) {
   selectedView = view;
+  frame.classList.toggle('dashboard-frame', view === 'dashboard');
+  if (view !== 'dashboard') document.body.classList.remove('dashboard-detail-open');
   for (const button of views.querySelectorAll('button')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === view));
   }
@@ -128,6 +130,7 @@ function showLogin(message = '') {
   $('login').hidden = false;
   $('logout').hidden = true;
   $('report').hidden = true;
+  document.body.classList.remove('dashboard-detail-open');
   frame.removeAttribute('srcdoc');
   frame.hidden = true;
   status(message);
@@ -181,7 +184,19 @@ $('refresh').onclick = async () => {
   finally { $('refresh').disabled = false; }
 };
 window.addEventListener('message', async event => {
-  if (event.source !== frame.contentWindow || event.data?.type !== 'teracoin-deposit-request' ||
+  if (event.source !== frame.contentWindow || !session) return;
+  if (selectedView === 'dashboard' && event.data?.type === 'crm-dashboard-height') {
+    const {height} = event.data;
+    if (Number.isInteger(height) && height > 0 && height <= 50000) {
+      $('report').style.setProperty('--dashboard-height', height + 'px');
+    }
+    return;
+  }
+  if (selectedView === 'dashboard' && event.data?.type === 'crm-dashboard-detail') {
+    document.body.classList.toggle('dashboard-detail-open', event.data.open === true);
+    return;
+  }
+  if (event.data?.type !== 'teracoin-deposit-request' ||
       typeof event.data.id !== 'string' || !/^\d{1,20}$/.test(event.data.id)) return;
   const {id} = event.data;
   try {

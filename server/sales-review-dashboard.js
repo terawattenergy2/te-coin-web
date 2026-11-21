@@ -15,6 +15,7 @@
 
   const tabs = document.querySelector('.tabs');
   const section = document.createElement('section');
+  const expandIcon = '<span class="dashboard-expand-icon" aria-hidden="true"></span>';
   section.className = 'product-analysis sales-dashboard';
   section.innerHTML = `
     <div class="dashboard-heading"><h2>ภาพรวมยอดขาย</h2>
@@ -29,15 +30,15 @@
     <div id="dashboardKpis" class="dashboard-kpis"></div>
     <div id="dashboardMissing" class="muted" role="status"></div>
     <div class="dashboard-grid">
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>แนวโน้มยอดขาย</h3><button type="button" data-chart="trend">ดูรายละเอียด</button></div><div id="dashboardTrend"></div></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ยอดขายตามหมวดสินค้า</h3><button type="button" data-chart="categories">ดูรายละเอียด</button></div><div id="dashboardCategories"></div></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><button type="button" data-chart="customers">ดูรายละเอียด</button></div><div id="dashboardCustomers"></div></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3><button type="button" data-chart="sellers">ดูรายละเอียด</button></div><div id="dashboardSellers"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>แนวโน้มยอดขาย</h3><button type="button" class="dashboard-icon-button" data-chart="trend" aria-label="ขยายกราฟแนวโน้มยอดขาย" title="ขยายกราฟแนวโน้มยอดขาย">${expandIcon}</button></div><div id="dashboardTrend"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ยอดขายตามหมวดสินค้า</h3><button type="button" class="dashboard-icon-button" data-chart="categories" aria-label="ขยายกราฟยอดขายตามหมวดสินค้า" title="ขยายกราฟยอดขายตามหมวดสินค้า">${expandIcon}</button></div><div id="dashboardCategories"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="customers" aria-label="ขยายกราฟอันดับลูกค้า" title="ขยายกราฟอันดับลูกค้า">${expandIcon}</button></div><div id="dashboardCustomers"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="sellers" aria-label="ขยายกราฟอันดับเซลส์" title="ขยายกราฟอันดับเซลส์">${expandIcon}</button></div><div id="dashboardSellers"></div></article>
     </div>
     <dialog id="dashboardDetail" class="dashboard-detail" aria-labelledby="dashboardDetailTitle">
       <div class="dialog-head"><h2 id="dashboardDetailTitle"></h2>
         <div class="dashboard-actions"><button type="button" id="dashboardDetailExport">ส่งออก Excel</button>
-        <form method="dialog"><button>กลับแดชบอร์ด</button></form></div>
+        <button type="button" id="dashboardDetailClose" class="dashboard-icon-button" aria-label="ปิดรายละเอียด" title="ปิดรายละเอียด">×</button></div>
       </div>
       <div id="dashboardDetailBody"></div>
     </dialog>`;
@@ -148,7 +149,11 @@
     $('dashboardDetailBody').innerHTML = `<div class="dashboard-detail-chart">${report.chart}</div>
       ${table(report.headers, report.rows.map(row => row.map((cell, index) => index === report.amountIndex ? money(cell) : cell)))}`;
     const dialog = $('dashboardDetail');
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+      parent.postMessage({type: 'crm-dashboard-detail', open: true}, '*');
+      $('dashboardDetailClose').focus({preventScroll: true});
+    }
     $('dashboardDetailBody').scrollTop = 0;
   }
 
@@ -233,6 +238,11 @@
     if (chart) showDetail(chart);
   });
   $('dashboardDetailExport').onclick = () => exportReports([detailKey]);
+  const detailDialog = $('dashboardDetail');
+  $('dashboardDetailClose').onclick = () => detailDialog.close();
+  detailDialog.addEventListener('close', () => {
+    parent.postMessage({type: 'crm-dashboard-detail', open: false}, '*');
+  });
 
   disclosure.addEventListener('toggle', render);
   if (parent !== window) {
@@ -242,6 +252,16 @@
     filterDisclosure.innerHTML = '<summary><span class="dashboard-filter-toggle">ตัวกรองรายงาน</span></summary>';
     filterDisclosure.firstElementChild.append(filterSummary);
     filters.before(filterDisclosure);
+    const reportMain = filters.parentElement;
+    const reportHeader = document.querySelector('header');
+    function reportHeight() {
+      if (!document.body.classList.contains('crm-dashboard-view') || detailDialog.open) return;
+      const height = Math.ceil(reportMain.getBoundingClientRect().bottom + window.scrollY);
+      parent.postMessage({type: 'crm-dashboard-height', height}, '*');
+    }
+    const resize = new ResizeObserver(reportHeight);
+    resize.observe(reportMain);
+    if (reportHeader) resize.observe(reportHeader);
     window.addEventListener('message', event => {
       if (event.source !== parent || event.data?.type !== 'crm-report-view') return;
       const dashboard = event.data.view === 'dashboard';
@@ -253,6 +273,7 @@
       if (dashboard) {
         filterDisclosure.append(filters);
         render();
+        reportHeight();
       } else {
         filterDisclosure.after(filters);
       }
