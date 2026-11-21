@@ -72,7 +72,7 @@ async function loadAudit() {
   try {
     const {rows} = await json(await reportRequest('audit'));
     if (epoch !== loginEpoch) return;
-    auditRows = rows;
+    auditRows = rows.filter(row => !/^[–—-]+$/.test(String(row.name ?? '').trim()));
     renderAudit();
   } catch (error) {
     if (epoch === loginEpoch) $('audit-status').textContent = error.message;
