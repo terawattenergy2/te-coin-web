@@ -13,6 +13,22 @@
       : []));
   });
 
+  const businessUnits = ['Inverter', 'PV (แผง)', 'Tlock', 'TCable'];
+  const compactName = text => matchText(text).replace(/\s+/g, '');
+  let mountNames = new Set();
+  let hasBuCatalog = false;
+
+  function businessUnit(row) {
+    const name = matchText(row[6]);
+    const category = matchText(row[8]);
+    if (mountNames.has(compactName(name)) || /(?:^|[^a-z])(?:t[ ._-]*lock\b|tl-[a-z0-9])|ทีล็อ[กค]/i.test(name)) return 'Tlock';
+    if (/(?:^|[^a-z])t[ ._-]*cable(?:$|[^a-z])|ที[ -]*เคเบิ[ล้]/i.test(name)) return 'TCable';
+    if (/warranty|license|ประกัน|สายไฟ|charger|optimizer|dongle|logger|meter|sensor|connector|battery|แบตเตอร์รี่/i.test(name)) return '';
+    if (category === 'แผงโซลาร์' || /แผงโซลาร์|แผงเซลล์แสงอาทิตย์|solar panel|pv module/i.test(name)) return 'PV (แผง)';
+    if (category === 'sigenergy · inverter / controller' || /inverter|อินเวอร์เตอร์|sun2000|sun5000/i.test(name)) return 'Inverter';
+    return '';
+  }
+
   const tabs = document.querySelector('.tabs');
   const section = document.createElement('section');
   const expandIcon = '<span class="dashboard-expand-icon" aria-hidden="true"></span>';
@@ -32,6 +48,8 @@
     <div class="dashboard-grid">
       <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>แนวโน้มยอดขาย</h3><button type="button" class="dashboard-icon-button" data-chart="trend" aria-label="ขยายกราฟแนวโน้มยอดขาย" title="ขยายกราฟแนวโน้มยอดขาย">${expandIcon}</button></div><div id="dashboardTrend"></div></article>
       <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ยอดขายตามหมวดสินค้า</h3><button type="button" class="dashboard-icon-button" data-chart="categories" aria-label="ขยายกราฟยอดขายตามหมวดสินค้า" title="ขยายกราฟยอดขายตามหมวดสินค้า">${expandIcon}</button></div><div id="dashboardCategories"></div></article>
+      <article id="dashboardBu" class="dashboard-panel dashboard-bu" hidden><div class="dashboard-card-heading"><h3>ยอดขายตาม BU</h3><button type="button" class="dashboard-icon-button" data-chart="bu" aria-label="ขยายกราฟยอดขายตาม BU" title="ขยายกราฟยอดขายตาม BU">${expandIcon}</button></div>
+        <div id="dashboardBuChart"></div><p id="dashboardBuStatus" class="dashboard-caption"></p></article>
       <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="customers" aria-label="ขยายกราฟอันดับลูกค้า" title="ขยายกราฟอันดับลูกค้า">${expandIcon}</button></div><div id="dashboardCustomers"></div></article>
       <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="sellers" aria-label="ขยายกราฟอันดับเซลส์" title="ขยายกราฟอันดับเซลส์">${expandIcon}</button></div><div id="dashboardSellers"></div></article>
     </div>
@@ -138,7 +156,7 @@
   const rankHeaders = label => ['อันดับ', label, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'];
   const rankRows = groups => groups.map((group, index) => [index + 1, group.key, group.amount, group.docs.size, group.lines]);
   const chartLabels = {
-    trend: 'แนวโน้มยอดขาย', categories: 'ยอดขายตามหมวดสินค้า',
+    trend: 'แนวโน้มยอดขาย', categories: 'ยอดขายตามหมวดสินค้า', bu: 'ยอดขายตาม BU',
     customers: 'ลูกค้าซื้อสูงสุด 10 อันดับ', sellers: 'เซลส์ขายสูงสุด 10 อันดับ',
   };
 
@@ -163,6 +181,34 @@
       return [chartLabels[key], [headers, ...rows], headers.map(() => 29)];
     });
     downloadSalesWorkbook(tabs, 'te-crm-dashboard.xlsx');
+  }
+
+  function renderBusinessUnits(known, periods, byPeriod, periodLabel) {
+    const buTotals = new Map(aggregate(known.filter(businessUnit), businessUnit).map(group => [group.key, group]));
+    const buChart = bars(businessUnits.map(key => buTotals.get(key) || {key, amount: 0}), group => group.key);
+    $('dashboardBuChart').innerHTML = buChart;
+    const buNotes = [];
+    if ($('brand').value) buNotes.push('กราฟใช้ตัวกรองยี่ห้อปัจจุบัน เลือก «ดูสินค้าทั้งหมด» เพื่อเทียบข้ามยี่ห้อ');
+    if (!hasBuCatalog) buNotes.push('รอข้อมูลรหัสสินค้าจากแค็ตตาล็อกเพื่อระบุ Tlock เพิ่มเติม');
+    $('dashboardBuStatus').textContent = buNotes.join(' · ');
+    const buRows = [];
+    for (const key of periods) {
+      const groups = new Map();
+      for (const row of byPeriod.get(key)) {
+        const bu = businessUnit(row);
+        if (!bu) continue;
+        if (!groups.has(bu)) groups.set(bu, []);
+        groups.get(bu).push(row);
+      }
+      for (const bu of businessUnits) {
+        if (!groups.has(bu)) continue;
+        for (const item of aggregate(groups.get(bu), row => row[6])) {
+          buRows.push([key, bu, item.key, item.amount, item.docs.size, item.lines]);
+        }
+      }
+    }
+    return {headers: [periodLabel, 'BU', 'สินค้า', 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'],
+      amountIndex: 3, rows: buRows, chart: buChart};
   }
 
   function render() {
@@ -195,6 +241,7 @@
     const customers = aggregate(known.filter(row => row[4]?.trim()), row => row[4].trim());
     const sellers = aggregate(known.filter(row => row[3]?.trim()), row => row[3].trim());
     reports = {
+      ...(!$('dashboardBu').hidden ? {bu: renderBusinessUnits(known, periods, byPeriod, periodLabel)} : {}),
       trend: {headers: [periodLabel, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'], amountIndex: 1,
         rows: values.map(([key, amount]) => [key, amount, new Set(byPeriod.get(key).map(row => row[0])).size, byPeriod.get(key).length]),
         chart: trend(values, true)},
@@ -263,8 +310,16 @@
     resize.observe(reportMain);
     if (reportHeader) resize.observe(reportHeader);
     window.addEventListener('message', event => {
-      if (event.source !== parent || event.data?.type !== 'crm-report-view') return;
+      if (event.source !== parent) return;
+      if (event.data?.type === 'crm-dashboard-bu-catalog' && Array.isArray(event.data.mountNames)) {
+        mountNames = new Set(event.data.mountNames.filter(name => typeof name === 'string').map(compactName));
+        hasBuCatalog = true;
+        render();
+        return;
+      }
+      if (event.data?.type !== 'crm-report-view') return;
       const dashboard = event.data.view === 'dashboard';
+      $('dashboardBu').hidden = !dashboard;
       disclosure.style.display = dashboard ? '' : 'none';
       disclosure.firstElementChild.hidden = true;
       disclosure.open = dashboard;

@@ -88,6 +88,7 @@ function showView(view) {
   success.hidden = !measuring;
   reviewPanel.hidden = !reviewing;
   if (reviewing) showReview(selectedReview);
+  if (view === 'dashboard' && !auditRows) loadAudit();
   if (measuring) saleSuccess.open();
   if (!reviewing && !measuring) showReportView();
 }
@@ -114,6 +115,12 @@ reviewViews.addEventListener('click', event => {
 
 function showReportView() {
   frame.contentWindow?.postMessage({type: 'crm-report-view', view: selectedView}, '*');
+  sendDashboardCatalog();
+}
+function sendDashboardCatalog() {
+  if (selectedView !== 'dashboard' || !auditRows) return;
+  const mountNames = auditRows.filter(row => /^TL-/i.test(row.code || '')).map(row => row.name).filter(Boolean);
+  frame.contentWindow?.postMessage({type: 'crm-dashboard-bu-catalog', mountNames}, '*');
 }
 frame.addEventListener('load', showReportView);
 views.addEventListener('click', event => {
@@ -151,6 +158,7 @@ async function loadAudit() {
     const {rows} = await json(await reportRequest('audit'));
     if (epoch !== loginEpoch) return;
     auditRows = rows.filter(row => !/^[–—-]+$/.test(String(row.name ?? '').trim()));
+    sendDashboardCatalog();
     renderAudit();
   } catch (error) {
     if (epoch === loginEpoch) $('audit-status').textContent = error.message;
