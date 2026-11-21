@@ -15,6 +15,7 @@
     <h2>ส่วนแบ่งยอดขายตามยี่ห้อ / กลุ่มสินค้า</h2>
     <div class="analysis-filters">
       <label>ยี่ห้อ / กลุ่มสินค้า<select id="analysisBrand"></select></label>
+      <label>ประเภทหลัก<select id="analysisSegment"></select></label>
       <label>หมวดสินค้า<select id="analysisCategory"></select></label>
       <div class="analysis-product-field"><strong>สินค้า</strong><button type="button" id="analysisProduct" aria-haspopup="dialog">เลือกสินค้า</button></div>
     </div>
@@ -38,6 +39,7 @@
   results.append(panel);
 
   const select = $('analysisBrand');
+  const segment = $('analysisSegment');
   const category = $('analysisCategory');
   const product = $('analysisProduct');
   const search = $('analysisSearch');
@@ -83,6 +85,21 @@
   }
   const collator = new Intl.Collator('th', { numeric: true, sensitivity: 'base' });
   const normalize = text => text.normalize('NFKC').toLocaleLowerCase().trim();
+
+  const unclassified = 'ยังไม่ระบุประเภท';
+  const modelKey = name => normalize(name).replace(/\bsigenstore(?=\s)/g, 'sigenstor')
+    .replace(/\s*(?:\(\s*new\s*\)|สินค้าโปรโมชั่น)\s*$/i, '')
+    .replace(/\s+/g, ' ').trim();
+  const modelSegments = new Map();
+  for (const [main, group, model] of reportProductSegments) {
+    const key = modelKey(model);
+    const earlier = modelSegments.get(key);
+    modelSegments.set(key, earlier === undefined ? {main, group} :
+      earlier?.main === main && earlier?.group === group ? earlier : null);
+  }
+  const classifyModel = row => modelSegments.get(modelKey(row[6]));
+  const segmentOf = row => classifyModel(row)?.main || unclassified;
+  const categoryOf = row => classifyModel(row)?.group || row[8];
 
   function setChoices(control, choices, allLabel, previous) {
     control.replaceChildren(
@@ -139,6 +156,7 @@
   }
 
   let selectedBrand;
+  let selectedSegment = '';
   let selectedCategory = '';
   const selectedProducts = new Set();
   function render() {
@@ -152,9 +170,13 @@
     selectedBrand = select.value;
 
     const brandRows = brands.get(selectedBrand) || [];
-    const categories = [...new Set(brandRows.map(row => row[8]))].sort(collator.compare);
+    const segments = new Set(brandRows.map(segmentOf));
+    selectedSegment = setChoices(segment, ['C&I', 'Resi', unclassified]
+      .filter(name => segments.has(name)).map(name => [name, name]), 'ทุกประเภท', selectedSegment);
+    const segmentRows = selectedSegment ? brandRows.filter(row => segmentOf(row) === selectedSegment) : brandRows;
+    const categories = [...new Set(segmentRows.map(categoryOf))].sort(collator.compare);
     selectedCategory = setChoices(category, categories.map(name => [name, name]), 'ทุกหมวด', selectedCategory);
-    const categoryRows = selectedCategory ? brandRows.filter(row => row[8] === selectedCategory) : brandRows;
+    const categoryRows = selectedCategory ? segmentRows.filter(row => categoryOf(row) === selectedCategory) : segmentRows;
     const available = new Set(categoryRows.map(row => row[5]));
     availableProducts = [...available].map(key => productMap.get(key))
       .sort((a, b) => collator.compare(a.name, b.name));
@@ -213,9 +235,16 @@
 
   select.onchange = () => {
     selectedBrand = select.value;
+    selectedSegment = '';
     selectedCategory = '';
     selectedProducts.clear();
     search.value = '';
+    render();
+  };
+  segment.onchange = () => {
+    selectedSegment = segment.value;
+    selectedCategory = '';
+    selectedProducts.clear();
     render();
   };
   category.onchange = () => {
