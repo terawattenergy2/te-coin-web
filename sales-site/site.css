@@ -76,3 +76,16 @@ body.dashboard-detail-open #report::after {
   .login-brand span { margin-top: 2px; }
   .login-form { padding: 24px; }
 }
+
+#success { background: white; border: 1px solid #d6e1ed; border-radius: 14px; padding: clamp(12px, 3vw, 24px); }
+.success-help { margin-top: 0; color: #405872; }
+.success-toolbar { align-items: end; }
+.success-toolbar select { min-height: 44px; max-width: min(340px, 80vw); border: 1px solid #9ab1c7; border-radius: 9px; padding: 6px 10px; font: inherit; background: white; }
+.success-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px),1fr)); gap: 10px; }
+.success-metrics > div { display: grid; background: #edf4fe; border-radius: 10px; padding: 12px; }
+.success-metrics strong { font-size: 1.22rem; font-variant-numeric: tabular-nums; }
+.success-table { overflow: auto; max-height: 56vh; }
+.success-table table { width: 100%; border-collapse: collapse; text-align: left; }
+.success-table th, .success-table td { padding: 9px 12px; border-bottom: 1px solid #d6e1ed; }
+.success-table th { position: sticky; top: 0; background: #e8f1fa; }
+.success-table td:first-child { white-space: nowrap; }

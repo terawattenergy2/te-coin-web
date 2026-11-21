@@ -1,5 +1,6 @@
 const upstream = 'https://te-coin-web.vercel.app';
 const reportRoutes = new Map([
+  ['sale-success', ['GET', '/sale-success']],
   ['audit', ['GET', '/product-audit']],
   ['report', ['GET', '']],
   ['refresh', ['POST', '/refresh']],

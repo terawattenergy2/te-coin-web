@@ -1,3 +1,4 @@
+import {loadSaleSuccess} from './sale-success.mjs';
 import {buildModelSegments, modelKey} from './sales-product-classifier.mjs';
 import http from 'node:http';
 import { createGzip } from 'node:zlib';
@@ -56,6 +57,8 @@ async function flow(path){
  if (r.status === 429) checkFlowRateLimit(r);
  if(!r.ok)throw Error(`FlowAccount HTTP ${r.status}${r.status===401?' — Token หมดอายุ ให้เปลี่ยน Token ฝั่งเซิร์ฟเวอร์':''}`);return r.json();
 }
+let saleSuccessCache;
+let saleSuccessPending;
 const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-review-paid-receipts-private.html', import.meta.url);
 const hostedReview = createHostedReview({
  flow, url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source,
@@ -400,6 +403,15 @@ export async function handler(req,res){
    const matches = verified.filter(Boolean);
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
+  }
+  if (req.method === 'GET' && route === '/sales-review/sale-success') {
+   if (environment !== 'v1') return reply(503, {message: 'ต้องเชื่อม FlowAccount Production'});
+   if (!saleSuccessPending && (!saleSuccessCache || Date.now() - Date.parse(saleSuccessCache.loadedAt) >= 300000)) {
+    saleSuccessPending = loadSaleSuccess(flow)
+     .then(data => (saleSuccessCache = data))
+     .finally(() => { saleSuccessPending = undefined; });
+   }
+   return reply(200, saleSuccessPending ? await saleSuccessPending : saleSuccessCache);
   }
   if (req.method === 'GET' && route === '/sales-review/product-audit') {
    if (environment !== 'v1') return reply(503, {message: 'ต้องเชื่อม FlowAccount Production'});

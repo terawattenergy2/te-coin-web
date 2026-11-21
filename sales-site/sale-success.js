@@ -1,0 +1,131 @@
+const $ = id => document.getElementById(id);
+const outcomes = {won: 'ปิดได้', lost: 'ปิดไม่ได้', open: 'ยังเปิดอยู่'};
+const missingSeller = 'ไม่ระบุเซลส์';
+const sellerOf = row => row.seller || missingSeller;
+const thaiNumber = new Intl.NumberFormat('th-TH');
+const percent = new Intl.NumberFormat('th-TH', {style: 'percent', maximumFractionDigits: 1});
+const bangkokDate = new Intl.DateTimeFormat('th-TH', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok'});
+const pageSize = 50;
+
+function renderTable(target, records) {
+  const body = document.createDocumentFragment();
+  for (const record of records) {
+    const row = document.createElement('tr');
+    for (const value of record) {
+      const cell = document.createElement('td');
+      cell.textContent = value || '—';
+      row.append(cell);
+    }
+    body.append(row);
+  }
+  $(target).replaceChildren(body);
+}
+
+function counts(rows) {
+  const result = {total: rows.length, won: 0, lost: 0, open: 0};
+  for (const row of rows) result[row.outcome]++;
+  return result;
+}
+
+export function createSaleSuccess(request) {
+  let data;
+  let pending = false;
+  let epoch = 0;
+  let page = 0;
+  const status = $('success-status');
+  const refresh = $('success-refresh');
+  const year = $('success-year');
+  const seller = $('success-seller');
+  const query = $('success-search');
+  const outcome = $('success-outcome');
+
+  function render() {
+    if (!data) return;
+    const term = query.value.trim().toLowerCase();
+    const filtered = data.rows.filter(row =>
+      (!year.value || row.date.startsWith(year.value + '-')) &&
+      (!seller.value || sellerOf(row) === seller.value) &&
+      [row.customer, row.number].some(value => value.toLowerCase().includes(term)));
+    const total = counts(filtered);
+    const metrics = [['ใบเสนอราคา', thaiNumber.format(total.total)], ...Object.entries(outcomes).map(([key, label]) =>
+      [label, `${thaiNumber.format(total[key])} · ${total.total ? percent.format(total[key] / total.total) : '—'}`])];
+    $('success-metrics').replaceChildren(...metrics.map(([label, value]) => {
+      const card = document.createElement('div');
+      const heading = document.createElement('span');
+      const number = document.createElement('strong');
+      heading.textContent = label;
+      number.textContent = value;
+      card.append(heading, number);
+      return card;
+    }));
+    const grouped = new Map();
+    for (const row of filtered) {
+      const name = sellerOf(row);
+      if (!grouped.has(name)) grouped.set(name, []);
+      grouped.get(name).push(row);
+    }
+    const team = [...grouped].map(([name, rows]) => ({name, ...counts(rows)}));
+    team.sort((a, b) => b.won / b.total - a.won / a.total || b.total - a.total || a.name.localeCompare(b.name, 'th'));
+    renderTable('success-team', team.map(r => [r.name, ...[r.total, r.won, r.lost, r.open].map(n => thaiNumber.format(n)), percent.format(r.won / r.total), percent.format(r.lost / r.total)]));
+    const detail = filtered.filter(row => !outcome.value || row.outcome === outcome.value);
+    const pages = Math.max(1, Math.ceil(detail.length / pageSize));
+    page = Math.min(page, pages - 1);
+    renderTable('success-quotes', detail.slice(page * pageSize, (page + 1) * pageSize).map(row =>
+      [row.number, row.date, row.customer, sellerOf(row), outcomes[row.outcome], row.status]));
+    $('success-prev').disabled = page === 0;
+    $('success-next').disabled = page + 1 >= pages;
+    $('success-page').textContent = detail.length ? `หน้า ${page + 1} จาก ${pages} · ${thaiNumber.format(detail.length)} ใบ` : 'ไม่มีใบเสนอราคาที่ตรงตัวกรอง';
+  }
+
+  async function load() {
+    if (pending) return;
+    const requestEpoch = epoch;
+    pending = true;
+    refresh.disabled = true;
+    status.textContent = 'กำลังอ่านใบเสนอราคาจาก FlowAccount…';
+    try {
+      const next = await request();
+      if (requestEpoch !== epoch) return;
+      data = next;
+      for (const [control, values] of [
+        [year, [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse()],
+        [seller, [...new Set(data.rows.map(sellerOf))].sort((a,b) => a.localeCompare(b, 'th'))],
+      ]) {
+        const selected = control.value;
+        control.replaceChildren(control.options[0], ...values.map(value => new Option(value, value)));
+        if (values.includes(selected)) control.value = selected;
+      }
+      render();
+      status.textContent = `ข้อมูล ณ ${bangkokDate.format(new Date(data.loadedAt))} (เวลาไทย)`;
+    } catch (error) {
+      if (requestEpoch === epoch) status.textContent = error.message;
+    } finally {
+      if (requestEpoch === epoch) {
+        pending = false;
+        refresh.disabled = false;
+      }
+    }
+  }
+
+  for (const control of [year, seller, query, outcome]) {
+    control.addEventListener(control === query ? 'input' : 'change', () => { page = 0; render(); });
+  }
+  $('success-prev').onclick = () => { page--; render(); };
+  $('success-next').onclick = () => { page++; render(); };
+  refresh.onclick = load;
+
+  return {
+    open() { if (!data) load(); },
+    reset() {
+      epoch++;
+      data = undefined;
+      pending = false;
+      page = 0;
+      refresh.disabled = false;
+      for (const control of [year, seller]) control.replaceChildren(control.options[0]);
+      query.value = outcome.value = status.textContent = $('success-page').textContent = '';
+      for (const id of ['success-metrics', 'success-team', 'success-quotes']) $(id).replaceChildren();
+      $('success-prev').disabled = $('success-next').disabled = true;
+    },
+  };
+}

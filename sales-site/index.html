@@ -15,6 +15,7 @@
 <nav id="views" aria-label="เมนู CRM" hidden>
 <button type="button" data-view="sales" aria-pressed="true">ยอดขายตามเซลส์</button>
 <button type="button" data-view="dashboard" aria-pressed="false">แดชบอร์ด</button>
+<button type="button" data-view="success" aria-pressed="false">Sale Success</button>
 <button type="button" data-view="audit" aria-pressed="false">ตรวจสอบการจัดกลุ่มสินค้า</button>
 </nav>
 </div>
@@ -38,6 +39,31 @@
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads" hidden></iframe>
+</section>
+<section id="success" hidden aria-label="Sale Success">
+<p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>
+<div class="toolbar success-toolbar">
+<label>ปีที่ออกใบเสนอราคา<select id="success-year"><option value="">ทุกปี</option></select></label>
+<label>เซลส์<select id="success-seller"><option value="">ทุกคน</option></select></label>
+<label>ค้นหาลูกค้า / เลขใบเสนอราคา<input id="success-search" type="search"></label>
+<button type="button" id="success-refresh">โหลดข้อมูลอีกครั้ง</button>
+</div>
+<p id="success-status" role="status"></p>
+<div id="success-metrics" class="success-metrics"></div>
+<h2>ผลงานรายเซลส์</h2>
+<div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">
+<table><thead><tr><th scope="col">เซลส์</th><th scope="col">ใบเสนอราคา</th><th scope="col">ปิดได้</th><th scope="col">ปิดไม่ได้</th><th scope="col">ยังเปิดอยู่</th><th scope="col">อัตราปิดได้</th><th scope="col">อัตราปิดไม่ได้</th></tr></thead><tbody id="success-team"></tbody></table>
+</div>
+<h2>รายละเอียดใบเสนอราคา</h2>
+<div class="toolbar success-toolbar">
+<label>ผลลัพธ์<select id="success-outcome"><option value="">ทั้งหมด</option><option value="won">ปิดได้</option><option value="lost">ปิดไม่ได้</option><option value="open">ยังเปิดอยู่</option></select></label>
+<button type="button" id="success-prev" disabled>ก่อนหน้า</button>
+<button type="button" id="success-next" disabled>ถัดไป</button>
+<span id="success-page" role="status"></span>
+</div>
+<div class="success-table" tabindex="0" aria-label="รายละเอียดใบเสนอราคา">
+<table><thead><tr><th scope="col">เลขใบเสนอราคา</th><th scope="col">วันที่</th><th scope="col">ลูกค้า</th><th scope="col">เซลส์</th><th scope="col">ผลลัพธ์</th><th scope="col">สถานะ FlowAccount</th></tr></thead><tbody id="success-quotes"></tbody></table>
+</div>
 </section>
 <section id="audit" aria-label="ตรวจสอบการจัดกลุ่มสินค้า" hidden>
 <p>เทียบชื่อสินค้าใน FlowAccount Production กับรหัสรุ่นในแท็บ Stock Profit</p>

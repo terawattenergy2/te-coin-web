@@ -1,3 +1,4 @@
+import {createSaleSuccess} from './sale-success.js';
 import {authUrl, publishableKey} from './auth-config.js';
 
 const $ = id => document.getElementById(id);
@@ -11,6 +12,8 @@ let auditRows;
 let auditBusy = false;
 const views = $('views');
 const audit = $('audit');
+const success = $('success');
+const saleSuccess = createSaleSuccess(async () => json(await reportRequest('sale-success')));
 const labels = new Map([
   ['matched', 'จับคู่แล้ว'],
   ['flow-only', 'มีใน FlowAccount เท่านั้น'],
@@ -28,10 +31,13 @@ function showView(view) {
   }
   const checking = view === 'audit';
   $('title').textContent = views.querySelector('[aria-pressed="true"]').textContent;
-  $('report').hidden = checking;
+  const measuring = view === 'success';
+  $('report').hidden = checking || measuring;
+  success.hidden = !measuring;
   audit.hidden = !checking;
   if (checking && !auditRows) loadAudit();
-  if (!checking) showReportView();
+  if (measuring) saleSuccess.open();
+  if (!checking && !measuring) showReportView();
 }
 
 function showReportView() {
@@ -134,7 +140,8 @@ function showLogin(message = '') {
   $('audit-rows').replaceChildren();
   $('audit-search').value = $('audit-filter').value = '';
   $('title').textContent = 'ยอดขายตามเซลส์';
-  views.hidden = audit.hidden = true;
+  views.hidden = audit.hidden = success.hidden = true;
+  saleSuccess.reset();
   setLoginVisible(true);
   $('logout').hidden = true;
   $('report').hidden = true;
