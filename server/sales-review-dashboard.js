@@ -18,23 +18,28 @@
   const section = document.createElement('section');
   section.className = 'product-analysis sales-dashboard';
   section.innerHTML = `
-    <h2>แดชบอร์ดยอดขาย</h2>
+    <div class="dashboard-heading"><h2>ภาพรวมยอดขาย</h2>
     <label class="dashboard-frequency">ช่วงเวลา<select id="dashboardPeriod">
       <option value="month">รายเดือน</option><option value="week">รายสัปดาห์ (จันทร์–อาทิตย์)</option>
     </select></label>
-    <p class="muted">ใช้ตัวกรองและฐานยอดด้านบน</p>
+    </div>
+    <div id="dashboardKpis" class="dashboard-kpis"></div>
+    <div class="dashboard-grid">
+      <article class="dashboard-panel"><h3>แนวโน้มยอดขาย</h3><div id="dashboardTrend"></div></article>
+      <article class="dashboard-panel"><h3>ยอดขายตามหมวดสินค้า</h3><div id="dashboardCategories"></div></article>
+    </div>
     <div id="dashboardMissing" class="muted" role="status"></div>
-    <h3>ยอดขายตามหมวดสินค้า</h3><div id="dashboardCategories"></div>
+
     <div class="dashboard-rankings">
-      <div><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><div id="dashboardCustomers"></div></div>
-      <div><h3>เซลส์ขายสูงสุด 10 อันดับตามบริษัท</h3>
+      <div class="dashboard-panel"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><div id="dashboardCustomers"></div></div>
+      <div class="dashboard-panel"><h3>เซลส์ขายสูงสุด 10 อันดับตามบริษัท</h3>
         <label>บริษัท<select id="dashboardCompany"><option value="">ทั้งหมด</option>
           ${companies.map(company => `<option>${E(company)}</option>`).join('')}
         </select></label>
         <div id="dashboardSellers"></div>
       </div>
     </div>
-    <h3>ยอดขายของสี่บริษัทตามช่วงเวลา</h3><div id="dashboardCompanies"></div>`;
+    <article class="dashboard-panel"><h3>ยอดขายของสี่บริษัทตามช่วงเวลา</h3><div id="dashboardCompanies"></div></article>`;
   const disclosure = document.createElement('details');
   disclosure.className = 'sales-dashboard-disclosure';
   disclosure.innerHTML = '<summary>แดชบอร์ดและยอดขายตามช่วงเวลา</summary>';
@@ -78,6 +83,28 @@
     return bars(groups, (group, i) => `${i + 1}. ${group.key}`);
   }
 
+  function trend(periods, byPeriod, periodLabel) {
+    const values = periods.map(key => [key, byPeriod.get(key).reduce((sum, row) => sum + value(row), 0)]);
+    if (!values.length) return '<p class="muted">ไม่มีข้อมูลตามตัวกรอง</p>';
+    const recent = values.slice(0, 12).reverse();
+    const max = Math.max(1, ...recent.map(([, amount]) => amount));
+    const min = Math.min(0, ...recent.map(([, amount]) => amount));
+    const scale = max - min;
+    return `<p class="dashboard-caption">${recent[0][0]} ถึง ${recent.at(-1)[0]} · บาท</p>
+      <div class="dashboard-columns" aria-label="กราฟแนวโน้มยอดขาย">
+      ${recent.map(([key, amount]) => `<div class="dashboard-point">
+        <div class="dashboard-plot">
+          <button type="button" class="dashboard-column" aria-label="${key} ${money(amount)} บาท"
+            style="--bottom:${100 * (Math.min(0, amount) - min) / scale}%;--height:${100 * Math.abs(amount) / scale}%">
+            <span>${key}<br>${money(amount)} บาท</span>
+          </button></div>
+        <small>${key.slice(5)}</small></div>`).join('')}
+      </div>
+      <details><summary>ดูยอดขายทุกช่วงเวลา</summary>
+        ${table([periodLabel, 'ยอดขาย (บาท)'], values.map(([key, amount]) => [key, money(amount)]))}
+      </details>`;
+  }
+
   let selectedCategoryPeriod;
   function render() {
     if (!disclosure.open) return;
@@ -100,6 +127,15 @@
     }
     const periods = [...byPeriod.keys()].sort().reverse();
     const periodLabel = $('dashboardPeriod').value === 'week' ? 'สัปดาห์เริ่มวันที่' : 'เดือน';
+    const kpis = [
+      [$('amountLabel').textContent, $('amount').textContent],
+      ['ใบเสร็จที่ตรงตัวกรอง', $('docCount').textContent],
+      ['ลูกค้า', num(new Set(known.map(row => row[4]?.trim()).filter(Boolean)).size)],
+      ['เซลส์ตามเอกสาร', $('sellerCount').textContent],
+    ];
+    $('dashboardKpis').innerHTML = kpis.map(([label, total]) =>
+      `<div class="dashboard-kpi"><small>${E(label)}</small><strong>${E(total)}</strong></div>`).join('');
+    $('dashboardTrend').innerHTML = trend(periods, byPeriod, periodLabel);
     const categories = new Map(periods.map(key => [key, aggregate(byPeriod.get(key), row => row[8])]));
     $('dashboardCategories').innerHTML = periods.length ? `
       <label class="dashboard-frequency">ช่วงเวลาที่แสดงในกราฟ<select id="dashboardCategoryPeriod">
@@ -139,6 +175,11 @@
 
   disclosure.addEventListener('toggle', render);
   if (parent !== window) {
+    const filters = document.querySelector('[aria-label="ตัวกรองรายงาน"]');
+    const filterDisclosure = document.createElement('details');
+    filterDisclosure.className = 'dashboard-filters';
+    filterDisclosure.innerHTML = '<summary>ตัวกรองรายงาน</summary>';
+    filters.before(filterDisclosure);
     window.addEventListener('message', event => {
       if (event.source !== parent || event.data?.type !== 'crm-report-view') return;
       const dashboard = event.data.view === 'dashboard';
@@ -146,12 +187,14 @@
       disclosure.firstElementChild.hidden = true;
       disclosure.open = dashboard;
       tabs.parentElement.hidden = dashboard;
+      document.body.classList.toggle('crm-dashboard-view', dashboard);
       if (dashboard) {
+        filterDisclosure.append(filters);
         render();
-        disclosure.scrollIntoView({block: 'start'});
       } else {
-        window.scrollTo(0, 0);
+        filterDisclosure.after(filters);
       }
+      window.scrollTo(0, 0);
     });
   }
   $('dashboardPeriod').onchange = render;
