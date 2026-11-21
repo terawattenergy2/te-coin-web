@@ -105,9 +105,30 @@
       </details>`;
   }
 
+  const filterSummary = document.createElement('span');
+  filterSummary.className = 'dashboard-filter-summary';
+
+  function renderFilterSummary() {
+    const fields = [
+      ['brand', 'ยี่ห้อ / กลุ่ม'], ['category', 'หมวด'], ['seller', 'เซลส์'],
+      ['year', 'ปี'], ['month', 'เดือน'], ['product', 'สินค้า'], ['search', 'ค้นหา'],
+    ];
+    const active = fields.flatMap(([id, label]) => {
+      const control = $(id);
+      if (!control.value.trim()) return [];
+      return [[label, control.selectedOptions?.[0]?.textContent || control.value.trim()]];
+    });
+    const basis = $('basis').selectedOptions[0].textContent;
+    filterSummary.innerHTML = `${active.length ? active.map(([label, selected]) =>
+      `<span class="dashboard-filter-chip"><strong>${E(label)}</strong> ${E(selected)}</span>`).join('')
+      : '<span class="dashboard-filter-empty">ทุกข้อมูล</span>'}
+      <span class="dashboard-filter-chip"><strong>ฐานยอด</strong> ${E(basis)}</span>`;
+  }
+
   let selectedCategoryPeriod;
   function render() {
     if (!disclosure.open) return;
+    if (filterSummary.isConnected) renderFilterSummary();
     const known = filtered.filter(row => value(row) != null);
     const dated = known.filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2]) && Number.isFinite(Date.parse(row[2])));
     const unknownCompanies = known.filter(row => !companyOf(row));
@@ -178,7 +199,8 @@
     const filters = document.querySelector('[aria-label="ตัวกรองรายงาน"]');
     const filterDisclosure = document.createElement('details');
     filterDisclosure.className = 'dashboard-filters';
-    filterDisclosure.innerHTML = '<summary>ตัวกรองรายงาน</summary>';
+    filterDisclosure.innerHTML = '<summary><span class="dashboard-filter-toggle">ตัวกรองรายงาน</span></summary>';
+    filterDisclosure.firstElementChild.append(filterSummary);
     filters.before(filterDisclosure);
     window.addEventListener('message', event => {
       if (event.source !== parent || event.data?.type !== 'crm-report-view') return;
