@@ -112,6 +112,22 @@
   }
 
   disclosure.addEventListener('toggle', render);
+  if (parent !== window) {
+    window.addEventListener('message', event => {
+      if (event.source !== parent || event.data?.type !== 'crm-report-view') return;
+      const dashboard = event.data.view === 'dashboard';
+      disclosure.style.display = dashboard ? '' : 'none';
+      disclosure.firstElementChild.hidden = true;
+      disclosure.open = dashboard;
+      tabs.parentElement.hidden = dashboard;
+      if (dashboard) {
+        render();
+        disclosure.scrollIntoView({block: 'start'});
+      } else {
+        window.scrollTo(0, 0);
+      }
+    });
+  }
   $('dashboardPeriod').onchange = render;
   $('dashboardCompany').onchange = render;
   const updateReport = update;

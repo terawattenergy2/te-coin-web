@@ -10,7 +10,14 @@
 <body>
 <header><strong>CRM</strong><button id="logout" hidden>ออกจากระบบ</button></header>
 <main>
-<h1>ยอดขายตามเซลส์</h1>
+<div class="page-heading">
+<h1 id="title">ยอดขายตามเซลส์</h1>
+<nav id="views" aria-label="เมนู CRM" hidden>
+<button type="button" data-view="sales" aria-pressed="true">ยอดขายตามเซลส์</button>
+<button type="button" data-view="dashboard" aria-pressed="false">แดชบอร์ด</button>
+<button type="button" data-view="audit" aria-pressed="false">ตรวจสอบการจัดกลุ่มสินค้า</button>
+</nav>
+</div>
 <form id="login" hidden>
 <p>เข้าสู่ระบบด้วยบัญชีผู้ดูแล TeraCoin</p>
 <label>อีเมล<input id="email" type="email" autocomplete="username" required></label>
@@ -20,6 +27,18 @@
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads" hidden></iframe>
+</section>
+<section id="audit" aria-label="ตรวจสอบการจัดกลุ่มสินค้า" hidden>
+<p>เทียบชื่อสินค้าใน FlowAccount Production กับรหัสรุ่นในแท็บ Stock Profit</p>
+<div class="toolbar">
+<label>ค้นหาชื่อสินค้า รหัส หรือหมวด<input id="audit-search" type="search"></label>
+<label>สถานะ<select id="audit-filter"><option value="">ทั้งหมด</option></select></label>
+<button id="audit-refresh" type="button">โหลดรายการใหม่</button>
+</div>
+<p id="audit-status" role="status"></p>
+<div class="audit-scroll" tabindex="0" aria-label="ตารางเปรียบเทียบสินค้า">
+<table><thead><tr><th scope="col">สินค้าใน FlowAccount</th><th scope="col">รหัสสินค้า</th><th scope="col">หมวดใน FlowAccount</th><th scope="col">รุ่นใน Sheet</th><th scope="col">ประเภทหลัก</th><th scope="col">กลุ่มใน Sheet</th><th scope="col">สถานะ</th></tr></thead><tbody id="audit-rows"></tbody></table>
+</div>
 </section>
 <p id="status" role="status">กำลังเปิดรายงาน…</p>
 </main>

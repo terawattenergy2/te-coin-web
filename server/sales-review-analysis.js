@@ -87,16 +87,7 @@
   const normalize = text => text.normalize('NFKC').toLocaleLowerCase().trim();
 
   const unclassified = 'ยังไม่ระบุประเภท';
-  const modelKey = name => normalize(name).replace(/\bsigenstore(?=\s)/g, 'sigenstor')
-    .replace(/\s*(?:\(\s*new\s*\)|สินค้าโปรโมชั่น)\s*$/i, '')
-    .replace(/\s+/g, ' ').trim();
-  const modelSegments = new Map();
-  for (const [main, group, model] of reportProductSegments) {
-    const key = modelKey(model);
-    const earlier = modelSegments.get(key);
-    modelSegments.set(key, earlier === undefined ? {main, group} :
-      earlier?.main === main && earlier?.group === group ? earlier : null);
-  }
+  const modelSegments = buildModelSegments(reportProductSegments);
   const classifyModel = row => modelSegments.get(modelKey(row[6]));
   const segmentOf = row => classifyModel(row)?.main || unclassified;
   const categoryOf = row => classifyModel(row)?.group || row[8];

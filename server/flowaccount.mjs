@@ -1,3 +1,4 @@
+import {buildModelSegments, modelKey} from './sales-product-classifier.mjs';
 import http from 'node:http';
 import { createGzip } from 'node:zlib';
 import { createHostedReview, validCron } from './sales-review-hosted.mjs';
@@ -400,6 +401,37 @@ export async function handler(req,res){
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
   }
+  if (req.method === 'GET' && route === '/sales-review/product-audit') {
+   if (environment !== 'v1') return reply(503, {message: 'ต้องเชื่อม FlowAccount Production'});
+   const sheet = JSON.parse(await readFile(new URL('./sales-review-product-segments.json', import.meta.url), 'utf8'));
+   const segments = buildModelSegments(sheet);
+   const items = new Map();
+   for (let page = 1; page <= 100; page++) {
+    const result = await flow(`products?currentPage=${page}&pageSize=200`);
+    const list = result?.data?.list;
+    if (result.status === false || !Array.isArray(list)) throw Error('อ่านรายการสินค้า FlowAccount ไม่สำเร็จ');
+    for (const product of list) items.set(product.id ?? JSON.stringify([product.code, product.name]), product);
+    const total = Number(result.data.total);
+    if (!list.length || (total > 0 ? items.size >= total : list.length < 200)) {
+     if (total > items.size) throw Error('รายการสินค้า FlowAccount มาไม่ครบ');
+     const models = new Map(sheet.map(([, , model]) => [modelKey(model), model]));
+     const seen = new Set();
+     const rows = [...items.values()].map(product => {
+      const key = modelKey(product.name);
+      const match = segments.get(key);
+      seen.add(key);
+      return {name: product.name, code: product.code, category: product.categoryName, model: models.get(key),
+       main: match?.main, group: match?.group, status: match ? 'matched' : match === null ? 'conflict' : 'flow-only'};
+     });
+     for (const [main, group, model] of sheet) {
+      const key = modelKey(model);
+      if (!seen.has(key)) rows.push({model, main, group, status: segments.get(key) === null ? 'conflict' : 'sheet-only'});
+     }
+     return reply(200, {rows});
+    }
+   }
+   throw Error('รายการสินค้า FlowAccount เกินขอบเขตที่ตรวจสอบได้');
+  }
   if (req.method === 'GET' && route === '/sales-review/deposit') {
    const id = u.searchParams.get('id') || '';
    if (!/^\d{1,20}$/.test(id)) return reply(400, {message: 'รหัสใบเสร็จไม่ถูกต้อง'});
@@ -454,6 +486,8 @@ export async function handler(req,res){
     .replace('<div class="filters">', '<div id="exportStatus" role="status"></div><div class="filters">')
     .replace('</div><div id="exportStatus"', '<button id="exportExcel" type="button">ส่งออก Excel</button></div><div id="exportStatus"')
     .replace('</body>', () => `<script>${reportExport}</script><script>const reportProductSegments = ${productSegments.replace(/</g, '\\u003c')};
+const modelKey = ${modelKey.toString()};
+${buildModelSegments.toString()}
 ${reportAnalysis}</script><script>${reportDashboard}</script></body>`);
    res.setHeader('Content-Type', 'text/html; charset=utf-8');
    res.setHeader('X-Content-Type-Options', 'nosniff');
