@@ -55,6 +55,19 @@ function amount(value) {
  return number;
 }
 
+// FlowAccount's receipt export treats the taxable amount as the pre-VAT
+// amount for combined receipts that expose no line amounts or separate VAT.
+export function receiptNetBeforeVat(doc) {
+ const base = amount(doc.totalWithoutVat);
+ if (String(doc.documentType) !== '9' ||
+     String(doc.isBatchDocument).toLowerCase() !== 'true' ||
+     String(doc.isVat).toLowerCase() !== 'true' ||
+     !doc.items.every(item => !String(item.name ?? '').trim() && item.total == null) ||
+     amount(doc.vatAmount) !== 0 || base !== amount(doc.grandTotal)) return base;
+ const taxable = amount(doc.vatableAmount);
+ return taxable > 0 && taxable < base ? taxable : base;
+}
+
 function integerParts(value) {
  const [, digits, fraction = '', exponent = '0'] = /^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(value).trim().replace(/^\+/, '').replace(/^0+(?=\d)/, '').replace(/^\./, '0.'));
  return [BigInt(digits + fraction), fraction.length - Number(exponent)];
@@ -147,7 +160,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
  let depositsAllocated = 0, depositsUnresolved = 0, allocatedDepositCents = 0, shippingAllocated = 0, allocatedShippingCents = 0, shippingUnresolved = 0;
  for (const doc of receipts) {
   const totals = doc.items.map(item => amount(item.total));
-  const base = amount(doc.totalWithoutVat);
+  const base = receiptNetBeforeVat(doc);
   const allocated = allocate(doc.items.map(item => item.total), base);
   const rawSum = totals.reduce((total, value) => total + (value ?? 0), 0);
   const status = String(doc.statusString ?? '');
