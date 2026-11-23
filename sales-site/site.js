@@ -247,9 +247,30 @@ const productEditor = $('product-group-editor');
 $('audit-rows').addEventListener('click', event => {
   const name = event.target.closest('[data-product-name]')?.dataset.productName;
   if (!name || savingProduct) return;
-  editingProduct = name;
+  openGroupEditor(name);
+});
+$('receipt-group-search').onsubmit = event => {
+  event.preventDefault();
+  if (savingProduct) return;
+  const number = $('receipt-group-number').value.trim().toUpperCase();
+  const matches = (rawReport?.dataset.receiptTotals ?? []).filter(receipt => receipt[1].toUpperCase() === number);
+  if (matches.length !== 1) {
+    $('receipt-group-status').textContent = matches.length ? 'พบเลขเอกสารซ้ำ กรุณาตรวจสอบใบเสร็จ' : 'ไม่พบใบเสร็จนี้ในรายงานใบเสร็จที่ชำระครบ';
+    return;
+  }
+  $('receipt-group-status').textContent = '';
+  openGroupEditor(matches[0][1], String(matches[0][0]));
+};
+
+function openGroupEditor(name, receiptId) {
+  const key = receiptId ? 'receipt:' + receiptId : productKey(name);
+  editingProduct = {name, receiptId, key};
   const fallback = reportProducts();
-  const group = effectiveProduct(name, fallback);
+  const group = receiptId ? productGroups.get(key) : effectiveProduct(name, fallback);
+  $('product-group-title').textContent = receiptId ? 'จัดประเภทใบเสร็จใน CRM' : 'จัดประเภทสินค้าใน CRM';
+  $('product-group-scope').textContent = receiptId
+    ? 'หมวดนี้มีผลกับยอดทั้งใบและมีผลเหนือหมวดตามชื่อสินค้าในใบเสร็จนี้'
+    : 'ใช้กับบรรทัดที่มีชื่อสินค้านี้ในรายงาน CRM';
   const options = [...fallback.values(), ...productGroups.values()];
   for (const [field, id] of [['brand', 'product-group-brands'], ['category', 'product-group-categories']]) {
     $(id).replaceChildren(...[...new Set(options.map(product => product[field]).filter(Boolean))].sort()
@@ -259,14 +280,14 @@ $('audit-rows').addEventListener('click', event => {
   $('product-group-brand').value = group?.brand ?? '';
   $('product-group-category').value = group?.category ?? '';
   $('product-group-status').textContent = '';
-  $('product-group-reset').disabled = !productGroups.has(productKey(name));
+  $('product-group-reset').disabled = !productGroups.has(key);
   productEditor.showModal();
-});
+}
 
 async function saveProductGroup(reset) {
   if (savingProduct || !editingProduct) return;
   const epoch = loginEpoch;
-  const payload = {name:editingProduct, brand:$('product-group-brand').value,
+  const payload = {name:editingProduct.name, receiptId:editingProduct.receiptId, brand:$('product-group-brand').value,
     category:$('product-group-category').value, reset};
   savingProduct = true;
   for (const id of ['product-group-save', 'product-group-reset', 'product-group-close']) $(id).disabled = true;
@@ -278,16 +299,16 @@ async function saveProductGroup(reset) {
     if (group.reset) productGroups.delete(group.productKey);
     else productGroups.set(group.productKey, group);
     if (rawReport) setReportFrame();
-    renderAudit();
+    if (auditRows) renderAudit();
     productEditor.close();
-    $('audit-status').textContent = group.reset ? 'คืนค่าจัดประเภทอัตโนมัติแล้ว' : 'บันทึกหมวดสินค้าและอัปเดตรายงาน CRM แล้ว';
+    $(group.receiptId ? 'receipt-group-status' : 'audit-status').textContent = group.reset ? 'คืนค่าจัดประเภทอัตโนมัติแล้ว' : 'บันทึกหมวดสินค้าและอัปเดตรายงาน CRM แล้ว';
   } catch (error) {
     if (epoch === loginEpoch) $('product-group-status').textContent = error.message;
   } finally {
     if (epoch === loginEpoch) {
       savingProduct = false;
       $('product-group-save').disabled = $('product-group-close').disabled = false;
-      $('product-group-reset').disabled = !productGroups.has(productKey(editingProduct));
+      $('product-group-reset').disabled = !productGroups.has(editingProduct?.key);
     }
   }
 }
@@ -416,7 +437,8 @@ function setReportFrame() {
     const override = productGroups.get(product.key);
     return override ? {...product, brand:override.brand, category:override.category, reason:'จัดประเภทใน CRM'} : product;
   });
-  const payload = JSON.stringify({...dataset, rows, products, receiptTotals: dataset.receiptTotals?.map(receipt => {
+  const receiptGroups = [...productGroups.values()].filter(group => group.receiptId);
+  const payload = JSON.stringify({...dataset, rows, products, receiptGroups, receiptTotals: dataset.receiptTotals?.map(receipt => {
     const grouped = [...receipt];
     grouped[3] = canonicalSeller(receipt[3]);
     return grouped;

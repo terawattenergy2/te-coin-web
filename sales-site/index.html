@@ -111,6 +111,12 @@
 <div class="audit-scroll" tabindex="0" aria-label="ตารางเปรียบเทียบสินค้า">
 <table><thead><tr><th scope="col">สินค้าใน FlowAccount</th><th scope="col">รหัสสินค้า</th><th scope="col">หมวดใน FlowAccount</th><th scope="col">รุ่นใน Sheet</th><th scope="col">ประเภทหลัก</th><th scope="col">กลุ่มใน Sheet</th><th scope="col">สถานะ</th><th scope="col">ยี่ห้อ / หมวดใน CRM</th><th scope="col">จัดประเภท</th></tr></thead><tbody id="audit-rows"></tbody></table>
 </div>
+<h2>จัดประเภทตามใบเสร็จ</h2>
+<form id="receipt-group-search" class="toolbar">
+<label>เลขที่ใบเสร็จ<input id="receipt-group-number" required placeholder="เช่น RE2026060172"></label>
+<button type="submit">จัดประเภทใบเสร็จ</button>
+</form>
+<p id="receipt-group-status" role="status"></p>
 <dialog id="product-group-editor" aria-labelledby="product-group-title">
 <form id="product-group-form">
 <div class="product-group-heading">
@@ -118,7 +124,7 @@
 <button type="button" id="product-group-close" aria-label="ปิด">×</button>
 </div>
 <p id="product-group-name"></p>
-<p>ใช้กับบรรทัดที่มีชื่อสินค้านี้ในรายงาน CRM</p>
+<p id="product-group-scope"></p>
 <label>ยี่ห้อ / กลุ่ม<input id="product-group-brand" list="product-group-brands" maxlength="100" required></label>
 <datalist id="product-group-brands"></datalist>
 <label>หมวดสินค้า<input id="product-group-category" list="product-group-categories" maxlength="160" required></label>

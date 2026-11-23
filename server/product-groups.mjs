@@ -10,12 +10,16 @@ function field(value, maxLength) {
 export function parseProductGroup(input) {
  const name = field(input?.name, 500);
  if (!name || /^[–—-]+$/.test(name)) return null;
- const productKey = name.toLowerCase().replace(/ß/g, 'ss').replace(/ς/g, 'σ');
- if (input.reset === true) return {productKey, name, reset: true};
+ const receiptId = input.receiptId;
+ if (receiptId !== undefined && (typeof receiptId !== 'string' || !/^\d{1,20}$/.test(receiptId))) return null;
+ if (!receiptId && /^receipt:/i.test(name)) return null;
+ const productKey = receiptId ? 'receipt:' + receiptId : name.toLowerCase().replace(/ß/g, 'ss').replace(/ς/g, 'σ');
+ const identity = receiptId ? {productKey, name, receiptId} : {productKey, name};
+ if (input.reset === true) return {...identity, reset: true};
  const brand = field(input.brand, 100);
  const category = field(input.category, 160);
  if (!brand || !category) return null;
- return {productKey, name, brand: brand.toLowerCase() === 'sigenergy' ? 'Sigenergy' : brand, category};
+ return {...identity, brand: brand.toLowerCase() === 'sigenergy' ? 'Sigenergy' : brand, category};
 }
 
 export function createProductGroupStore({url, key, source}) {

@@ -78,7 +78,7 @@ const downloadSalesWorkbook = (() => {
     const products = [['สินค้า', 'ยี่ห้อ', 'หมวด', 'จำนวนแยกหน่วย', 'ใบเสร็จรับเงิน', amount],
       ...aggregate(filtered, row => row[5]).map(item => {
         const product = productMap.get(item.key);
-        return [product.name, product.brand, product.category,
+        return [product.name, [...item.brands].join(" / "), [...item.categories].join(" / "),
           [...item.units].map(([unit, count]) => `${num(count)} ${unit}`).join(' / '),
           item.docs.size, item.amount];
       })];
