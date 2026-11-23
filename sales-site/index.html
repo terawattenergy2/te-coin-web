@@ -63,7 +63,19 @@
 <p id="success-selected" hidden></p>
 <p>ยอดสุทธิหลังปรับท้ายใบเสร็จ (ไม่รวม VAT) รวมเฉพาะใบเสร็จที่ชำระครบและเชื่อมกับใบเสนอราคาได้</p>
 <div id="success-metrics" class="success-metrics"></div>
+<div class="source-heading">
 <h2>ผลงานรายเซลส์</h2>
+<button class="source-info" type="button" popovertarget="source-success" aria-label="ที่มาข้อมูล Sale Success">ⓘ</button>
+</div>
+<section class="source-popover" id="source-success" popover aria-labelledby="source-success-title">
+<div class="source-heading"><strong id="source-success-title">ที่มาข้อมูล · Sale Success</strong>
+<button class="source-info" type="button" popovertarget="source-success" popovertargetaction="hide" aria-label="ปิดที่มาข้อมูล">×</button></div>
+<ul>
+<li>FlowAccount Production · GET /v1/quotations · นับตามวันที่ออกใบเสนอราคาและชื่อเซลส์บนเอกสาร</li>
+<li>ปิดได้เมื่ออนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</li>
+<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้ โดยใช้สูตรเดียวกับรายงานยอดขาย</li>
+</ul>
+</section>
 <div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">
 <table><thead><tr><th scope="col">เซลส์</th><th scope="col">ใบเสนอราคา</th><th scope="col">ปิดได้</th><th scope="col">ปิดไม่ได้</th><th scope="col">ยังเปิดอยู่</th><th scope="col">อัตราปิดได้</th><th scope="col">อัตราปิดไม่ได้</th><th scope="col">ยอดสุทธิใบเสร็จ (ไม่รวม VAT)</th></tr></thead><tbody id="success-team"></tbody></table>
 </div>

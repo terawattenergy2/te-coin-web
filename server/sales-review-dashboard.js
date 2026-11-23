@@ -32,9 +32,18 @@
   const tabs = document.querySelector('.tabs');
   const section = document.createElement('section');
   const expandIcon = '<span class="dashboard-expand-icon" aria-hidden="true"></span>';
+  const chartSources = {
+    overview: ['ยอดและจำนวนใบเสร็จใช้ตัวกรองรายงาน ลูกค้าและเซลส์นับตามชื่อในใบเสร็จ'],
+    trend: ['จัดกลุ่มตามวันที่เอกสารใบเสร็จ เลือกแสดงรายสัปดาห์ รายเดือน หรือรายปีได้'],
+    categories: ['ยอดแยกตามหมวดที่ CRM จัดจากชื่อสินค้า และใช้ช่วงเวลาที่เลือกเหนือกราฟ'],
+    bu: ['จัดกลุ่มเป็น Inverter, PV (แผง), Tlock และ TCable จากชื่อสินค้าและหมวดที่ CRM จัดไว้'],
+    customers: ['จัดอันดับจากยอดสุทธิของใบเสร็จตามชื่อลูกค้าในเอกสาร ภายใต้ตัวกรองรายงาน'],
+    sellers: ['จัดอันดับจากยอดสุทธิของใบเสร็จตามชื่อเซลส์ในเอกสาร โดยใช้ชื่อที่ยืนยันรวมในหน้าตรวจสอบข้อมูล'],
+  };
+  const source = (key, title) => sourceInfo(key, title, [...receiptSourceNotes, ...chartSources[key]]);
   section.className = 'product-analysis sales-dashboard';
   section.innerHTML = `
-    <div class="dashboard-heading"><h2>ภาพรวมยอดขาย</h2>
+    <div class="dashboard-heading"><div class="source-heading"><h2>ภาพรวมยอดขาย</h2>${source('overview', 'ภาพรวมยอดขาย')}</div>
       <div class="dashboard-actions">
         <label class="dashboard-frequency">ช่วงเวลา<select id="dashboardPeriod">
           <option value="month">รายเดือน</option><option value="week">รายสัปดาห์ (จันทร์–อาทิตย์)</option>
@@ -46,12 +55,12 @@
     <div id="dashboardKpis" class="dashboard-kpis"></div>
     <div id="dashboardMissing" class="muted" role="status"></div>
     <div class="dashboard-grid">
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>แนวโน้มยอดขาย</h3><button type="button" class="dashboard-icon-button" data-chart="trend" aria-label="ขยายกราฟแนวโน้มยอดขาย" title="ขยายกราฟแนวโน้มยอดขาย">${expandIcon}</button></div><div id="dashboardTrend"></div></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ยอดขายตามหมวดสินค้า</h3><button type="button" class="dashboard-icon-button" data-chart="categories" aria-label="ขยายกราฟยอดขายตามหมวดสินค้า" title="ขยายกราฟยอดขายตามหมวดสินค้า">${expandIcon}</button></div><div id="dashboardCategories"></div></article>
-      <article id="dashboardBu" class="dashboard-panel dashboard-bu" hidden><div class="dashboard-card-heading"><h3>ยอดขายตาม BU</h3><button type="button" class="dashboard-icon-button" data-chart="bu" aria-label="ขยายกราฟยอดขายตาม BU" title="ขยายกราฟยอดขายตาม BU">${expandIcon}</button></div>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><div class="source-heading"><h3>แนวโน้มยอดขาย</h3>${source('trend', 'แนวโน้มยอดขาย')}</div><button type="button" class="dashboard-icon-button" data-chart="trend" aria-label="ขยายกราฟแนวโน้มยอดขาย" title="ขยายกราฟแนวโน้มยอดขาย">${expandIcon}</button></div><div id="dashboardTrend"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><div class="source-heading"><h3>ยอดขายตามหมวดสินค้า</h3>${source('categories', 'ยอดขายตามหมวดสินค้า')}</div><button type="button" class="dashboard-icon-button" data-chart="categories" aria-label="ขยายกราฟยอดขายตามหมวดสินค้า" title="ขยายกราฟยอดขายตามหมวดสินค้า">${expandIcon}</button></div><div id="dashboardCategories"></div></article>
+      <article id="dashboardBu" class="dashboard-panel dashboard-bu" hidden><div class="dashboard-card-heading"><div class="source-heading"><h3>ยอดขายตาม BU</h3>${source('bu', 'ยอดขายตาม BU')}</div><button type="button" class="dashboard-icon-button" data-chart="bu" aria-label="ขยายกราฟยอดขายตาม BU" title="ขยายกราฟยอดขายตาม BU">${expandIcon}</button></div>
         <div id="dashboardBuChart"></div><p id="dashboardBuStatus" class="dashboard-caption"></p></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="customers" aria-label="ขยายกราฟอันดับลูกค้า" title="ขยายกราฟอันดับลูกค้า">${expandIcon}</button></div><div id="dashboardCustomers"></div></article>
-      <article class="dashboard-panel"><div class="dashboard-card-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3><button type="button" class="dashboard-icon-button" data-chart="sellers" aria-label="ขยายกราฟอันดับเซลส์" title="ขยายกราฟอันดับเซลส์">${expandIcon}</button></div><div id="dashboardSellers"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><div class="source-heading"><h3>ลูกค้าซื้อสูงสุด 10 อันดับ</h3>${source('customers', 'ลูกค้าซื้อสูงสุด 10 อันดับ')}</div><button type="button" class="dashboard-icon-button" data-chart="customers" aria-label="ขยายกราฟอันดับลูกค้า" title="ขยายกราฟอันดับลูกค้า">${expandIcon}</button></div><div id="dashboardCustomers"></div></article>
+      <article class="dashboard-panel"><div class="dashboard-card-heading"><div class="source-heading"><h3>เซลส์ขายสูงสุด 10 อันดับ</h3>${source('sellers', 'เซลส์ขายสูงสุด 10 อันดับ')}</div><button type="button" class="dashboard-icon-button" data-chart="sellers" aria-label="ขยายกราฟอันดับเซลส์" title="ขยายกราฟอันดับเซลส์">${expandIcon}</button></div><div id="dashboardSellers"></div></article>
     </div>
     <dialog id="dashboardDetail" class="dashboard-detail" aria-labelledby="dashboardDetailTitle">
       <div class="dialog-head"><h2 id="dashboardDetailTitle"></h2>

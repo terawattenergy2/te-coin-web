@@ -8,12 +8,31 @@
 <label>ยี่ห้อ / กลุ่ม<select id="brand"></select></label><label>หมวดสินค้า<select id="category"></select></label><label>ชื่อเซลส์ตามเอกสาร<select id="seller"></select></label><label>ปีเอกสาร<select id="year"></select></label><label>เดือนเอกสาร<select id="month"></select></label><label>สินค้า<select id="product"></select></label><label class="wide">ค้นหาสินค้า / เซลส์ / ลูกค้า / เลขเอกสาร<input id="search" type="search" placeholder="เช่น SigenStor BAT 10.0 หรือชื่อเซลส์"></label></div>
 <details class="explain"><summary>วิธีจัดหมวดและคำนวณยอด — กรุณาอ่านก่อนใช้ยอด</summary><p>ระบุ Sigenergy จากชื่อสินค้าที่มี Sigenergy หรือ Sigen เท่านั้น รายการชื่อกว้าง เช่น Dummy Battery หรือ Fast Charging License จะไม่ถือเป็น Sigenergy โดยอัตโนมัติ หมวดอื่นจัดจากชื่อ/ตระกูลรุ่นเพื่อช่วยค้นหา ยังไม่ใช่หมวดในระบบบัญชี</p><p>รวมชื่อซ้ำเฉพาะตัวพิมพ์และช่องว่างที่ต่างกัน ไม่รวมรุ่นหรือขนาดที่คล้ายกันอัตโนมัติ ชื่อเซลส์ใช้ตามเอกสาร ชื่อไทย/อังกฤษของคนเดียวกันอาจยังแยกคน ต้องยืนยันก่อนรวม</p><p>ยอดก่อน VAT ของแต่ละรายการ = ยอดสุทธิไม่รวม VAT ของบิล × สัดส่วน item.total ต่อผลรวมรายการทั้งบิล โดยปันเศษสตางค์ให้ตรงฐานก่อน VAT ของบิล วิธีนี้รวมผลของส่วนลด/หักยอดท้ายบิลตามสัดส่วน เป็นวิธีทำรายงานตรวจสอบ ไม่ใช่การยืนยันว่ารายการส่วนลดนั้นเป็นของสินค้าตัวใดโดยเฉพาะ สำหรับใบเสร็จรวมที่ API ส่งยอดรวม VAT ไว้ในช่องก่อน VAT และไม่มีราคาแยกรายการ ระบบใช้ฐาน VAT ของใบเสร็จตามรายงาน FlowAccount</p><p>ใบเสร็จรับเงินแต่ละฉบับนับหนึ่งครั้ง สินค้าชื่อซ้ำต่างใบยังเป็นยอดขายคนละรายการ ชุดรายงานนี้ไม่ได้นำใบลดหนี้มาหัก จึงไม่ใช่ยอดขายสุทธิหลังคืนสินค้า และไม่ใช่ยอดรับเงินจริง เงินมัดจำที่ยืนยันใบเสนอราคาได้จะแบ่งตามมูลค่าของสินค้าในใบเสนอราคา โดยใช้ยอดจากใบเสร็จและไม่เพิ่มจำนวนหน่วยสินค้า ค่าขนส่งที่ระบุรุ่นได้จากใบเสร็จหรือเอกสารอ้างอิงจะแสดงยอดย่อยใต้รุ่นนั้น</p><p>API เส้นนี้แสดงเฉพาะสินค้าที่ปรากฏในใบเสร็จรับเงินที่ดึงมา ไม่ใช่สินค้าทุกตัวในคลัง และยอดรายคนขึ้นกับการระบุ salesName ในเอกสาร</p></details></section>
 <div class="metrics" aria-live="polite"><div class="metric"><small id="amountLabel">ยอดสุทธิหลังปรับท้ายใบเสร็จ (ไม่รวม VAT)</small><strong id="amount"></strong></div><div class="metric"><small>ใบเสร็จรับเงินที่ตรงตัวกรอง</small><strong id="docCount"></strong></div><div class="metric"><small>รายการ / ชื่อสินค้า</small><strong id="lineCount"></strong></div><div class="metric"><small>ชื่อเซลส์ตามเอกสาร</small><strong id="sellerCount"></strong></div></div>
-<div id="warning" class="note"></div><section class="card"><nav class="tabs" aria-label="มุมมองรายงาน"><button data-tab="sellers" class="active">ยอดตามเซลส์</button><button data-tab="products">รายการสินค้าที่ API มี</button><button data-tab="lines">ทุกรายการขาย</button></nav><div class="result-head"><h2 id="viewTitle"></h2><span id="count" class="muted"></span></div><div class="scroll"><table><thead id="head"></thead><tbody id="body"></tbody></table></div><div class="pager"><button id="prev">ก่อนหน้า</button><span id="page" aria-live="polite"></span><button id="next">ถัดไป</button></div></section>
+<div id="warning" class="note"></div><section class="card"><nav class="tabs" aria-label="มุมมองรายงาน"><button data-tab="sellers" class="active">ยอดตามเซลส์</button><button data-tab="products">รายการสินค้าที่ API มี</button><button data-tab="lines">ทุกรายการขาย</button></nav><div class="result-head"><div class="source-heading"><h2 id="viewTitle"></h2><span id="salesSourceInfo"></span></div><span id="count" class="muted"></span></div><div class="scroll"><table><thead id="head"></thead><tbody id="body"></tbody></table></div><div class="pager"><button id="prev">ก่อนหน้า</button><span id="page" aria-live="polite"></span><button id="next">ถัดไป</button></div></section>
 <footer id="footer"></footer></main><dialog id="detail"><div class="dialog-head"><h2 id="detailTitle"></h2><button id="close">ปิด</button></div><div id="detailBody"></div></dialog>
 <script id="dataset" type="application/json">__DATA__</script><script>
 'use strict';
 const DATA=JSON.parse(document.getElementById('dataset').textContent),R=DATA.rows,P=DATA.products,meta=DATA.meta;
 const $=id=>document.getElementById(id),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const receiptSourceNotes = [
+  'FlowAccount Production · GET /v1/receipts · เฉพาะใบเสร็จรับเงินที่ชำระครบ',
+  'ยอดเป็นเงินบาท ใช้ยอดสุทธิหลังปรับท้ายใบเสร็จ (ไม่รวม VAT) จาก totalWithoutVat สำหรับใบเสร็จรวม REC ที่เข้าเงื่อนไข ระบบใช้ vatableAmount',
+  'ยอดรายสินค้าใช้สัดส่วนมูลค่าบรรทัดในใบเสร็จ ส่วนยอดที่ปันไม่ได้อยู่ในกลุ่มยอดสุทธิที่ยังไม่ปันลงสินค้า',
+];
+function sourceInfo(id, title, notes) {
+  const panel = 'source-' + id;
+  return `<button class="source-info" type="button" popovertarget="${panel}" aria-label="ที่มาข้อมูล ${E(title)}">ⓘ</button>
+    <section class="source-popover" id="${panel}" popover aria-labelledby="${panel}-title">
+      <div class="source-heading"><strong id="${panel}-title">ที่มาข้อมูล · ${E(title)}</strong>
+        <button class="source-info" type="button" popovertarget="${panel}" popovertargetaction="hide" aria-label="ปิดที่มาข้อมูล">×</button>
+      </div><ul>${notes.map(note => `<li>${E(note)}</li>`).join('')}</ul>
+    </section>`;
+}
+$('salesSourceInfo').innerHTML = sourceInfo('sales', 'ยอดขายตามเซลส์', [
+  ...receiptSourceNotes,
+  'วันที่และชื่อเซลส์มาจากใบเสร็จ ชื่อที่ยืนยันรวมในหน้าตรวจสอบข้อมูลจะแสดงเป็นคนเดียวกัน',
+  'ตารางและ Excel ใช้ตัวกรองรายงานและฐานยอดเดียวกัน',
+]);
 const money=v=>v==null?'รอตรวจ':Number(v).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}),num=v=>Number(v).toLocaleString('th-TH',{maximumFractionDigits:4});
 const statusNames={paid:'ชำระครบ',void:'ยกเลิก',awaiting:'รออนุมัติ'};
 function options(id,values,label='ทั้งหมด'){ $(id).innerHTML='<option value="">'+E(label)+'</option>'+[...new Set(values)].sort((a,b)=>String(a).localeCompare(String(b),'th')).map(v=>'<option value="'+E(v)+'">'+E(v)+'</option>').join(''); }

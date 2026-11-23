@@ -196,3 +196,27 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 .dashboard-bu { grid-column: 1 / -1; }
 .dashboard-bu .dashboard-chart { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 22px; }
 @media (max-width: 640px) { .dashboard-bu .dashboard-chart { grid-template-columns: 1fr; } }
+
+.source-heading { display: flex; align-items: center; gap: .5rem; }
+.source-heading h2, .source-heading h3 { margin-block: 0; }
+.source-heading .source-info {
+  display: grid; place-items: center; flex: none; width: 2rem; height: 2rem;
+  padding: 0; color: #18589c; background: #edf5ff; border: 1px solid #c9dbef;
+  border-radius: 50%; font-size: 1.1rem; line-height: 1;
+}
+.source-popover {
+  position: fixed; inset: 10vh 0 auto; margin: 0 auto;
+  width: min(34rem, calc(100% - 2rem)); max-height: 75vh; overflow: auto;
+  padding: 1rem 1.25rem; color: #172c43; background: white;
+  border: 1px solid #bfd3e8; border-radius: 12px; box-shadow: 0 10px 35px #132c4933;
+}
+.source-popover .source-heading { justify-content: space-between; }
+.source-popover ul { margin: .75rem 0 0; padding-inline-start: 1.4rem; }
+.source-popover li + li { margin-top: .45rem; }
+@supports (position-area: bottom span-right) {
+  .source-popover {
+    inset: auto; margin: .4rem;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-inline, flip-block, flip-inline flip-block;
+  }
+}
