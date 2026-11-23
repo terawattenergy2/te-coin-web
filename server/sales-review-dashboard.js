@@ -143,7 +143,7 @@
       if (!control.value.trim()) return [];
       return [[label, control.selectedOptions?.[0]?.textContent || control.value.trim()]];
     });
-    const basis = $('basis').selectedOptions[0].textContent;
+    const basis = basisLabel();
     filterSummary.innerHTML = `${active.length ? active.map(([label, selected]) =>
       `<span class="dashboard-filter-chip"><strong>${E(label)}</strong> ${E(selected)}</span>`).join('')
       : '<span class="dashboard-filter-empty">ทุกข้อมูล</span>'}
@@ -153,7 +153,7 @@
   let selectedCategoryPeriod;
   let reports;
   let detailKey;
-  const rankHeaders = label => ['อันดับ', label, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'];
+  const rankHeaders = label => ['อันดับ', label, 'ยอดสุทธิ (ไม่รวม VAT)', 'ใบเสร็จ', 'รายการ'];
   const rankRows = groups => groups.map((group, index) => [index + 1, group.key, group.amount, group.docs.size, group.lines]);
   const chartLabels = {
     trend: 'แนวโน้มยอดขาย', categories: 'ยอดขายตามหมวดสินค้า', bu: 'ยอดขายตาม BU',
@@ -207,7 +207,7 @@
         }
       }
     }
-    return {headers: [periodLabel, 'BU', 'สินค้า', 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'],
+    return {headers: [periodLabel, 'BU', 'สินค้า', 'ยอดสุทธิ (ไม่รวม VAT)', 'ใบเสร็จ', 'รายการ'],
       amountIndex: 3, rows: buRows, chart: buChart};
   }
 
@@ -227,7 +227,7 @@
     }
     const periods = [...byPeriod.keys()].sort().reverse();
     const periodLabel = {week: 'สัปดาห์เริ่มวันที่', month: 'เดือน', year: 'ปี'}[$('dashboardPeriod').value];
-    const values = periods.map(key => [key, byPeriod.get(key).reduce((sum, row) => sum + value(row), 0)]);
+    const values = periods.map(key => [key, receiptSummary(byPeriod.get(key)).total]);
     const summary = receiptSummary(filtered);
     const kpis = [
       [$('amountLabel').textContent, summary.total],
@@ -243,10 +243,10 @@
     const sellers = aggregate(known.filter(row => row[3]?.trim()), row => row[3].trim());
     reports = {
       ...(!$('dashboardBu').hidden ? {bu: renderBusinessUnits(known, periods, byPeriod, periodLabel)} : {}),
-      trend: {headers: [periodLabel, 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'], amountIndex: 1,
+      trend: {headers: [periodLabel, 'ยอดสุทธิ (ไม่รวม VAT)', 'ใบเสร็จ', 'รายการ'], amountIndex: 1,
         rows: values.map(([key, amount]) => [key, amount, new Set(byPeriod.get(key).map(row => row[0])).size, byPeriod.get(key).length]),
         chart: trend(values, true)},
-      categories: {headers: [periodLabel, 'หมวดสินค้า', 'ยอดขาย (บาท)', 'ใบเสร็จ', 'รายการ'], amountIndex: 2,
+      categories: {headers: [periodLabel, 'หมวดสินค้า', 'ยอดสุทธิ (ไม่รวม VAT)', 'ใบเสร็จ', 'รายการ'], amountIndex: 2,
         rows: periods.flatMap(key => categories.get(key).map(group => [key, group.key, group.amount, group.docs.size, group.lines]))},
       customers: {headers: rankHeaders('ลูกค้า'), rows: rankRows(customers), amountIndex: 2},
       sellers: {headers: rankHeaders('เซลส์'), rows: rankRows(sellers), amountIndex: 2},

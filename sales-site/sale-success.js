@@ -2,6 +2,8 @@ const $ = id => document.getElementById(id);
 const outcomes = {won: 'ปิดได้', lost: 'ปิดไม่ได้', open: 'ยังเปิดอยู่'};
 const missingSeller = 'ไม่ระบุเซลส์';
 const thaiNumber = new Intl.NumberFormat('th-TH');
+const money = new Intl.NumberFormat('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const receiptNet = cents => cents == null ? '—' : money.format(cents / 100);
 const percent = new Intl.NumberFormat('th-TH', {style: 'percent', maximumFractionDigits: 1});
 const bangkokDate = new Intl.DateTimeFormat('th-TH', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok'});
 const pageSize = 50;
@@ -21,8 +23,11 @@ function renderTable(target, records) {
 }
 
 function counts(rows) {
-  const result = {total: rows.length, won: 0, lost: 0, open: 0};
-  for (const row of rows) result[row.outcome]++;
+  const result = {total: rows.length, won: 0, lost: 0, open: 0, receiptNetCents: null};
+  for (const row of rows) {
+    result[row.outcome]++;
+    if (row.receiptNetCents != null) result.receiptNetCents = (result.receiptNetCents ?? 0) + row.receiptNetCents;
+  }
   return result;
 }
 
@@ -59,6 +64,7 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     const total = counts(filtered);
     const metrics = [['ใบเสนอราคา', thaiNumber.format(total.total)], ...Object.entries(outcomes).map(([key, label]) =>
       [label, `${thaiNumber.format(total[key])} · ${total.total ? percent.format(total[key] / total.total) : '—'}`])];
+    metrics.push(['ยอดสุทธิใบเสร็จ (ไม่รวม VAT)', receiptNet(total.receiptNetCents)]);
     $('success-metrics').replaceChildren(...metrics.map(([label, value]) => {
       const card = document.createElement('div');
       const heading = document.createElement('span');
@@ -76,12 +82,12 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     }
     const team = [...grouped].map(([name, rows]) => ({name, ...counts(rows)}));
     team.sort((a, b) => b.won / b.total - a.won / a.total || b.total - a.total || a.name.localeCompare(b.name, 'th'));
-    renderTable('success-team', team.map(r => [r.name, ...[r.total, r.won, r.lost, r.open].map(n => thaiNumber.format(n)), percent.format(r.won / r.total), percent.format(r.lost / r.total)]));
+    renderTable('success-team', team.map(r => [r.name, ...[r.total, r.won, r.lost, r.open].map(n => thaiNumber.format(n)), percent.format(r.won / r.total), percent.format(r.lost / r.total), receiptNet(r.receiptNetCents)]));
     const detail = filtered.filter(row => !outcome.value || row.outcome === outcome.value);
     const pages = Math.max(1, Math.ceil(detail.length / pageSize));
     page = Math.min(page, pages - 1);
     renderTable('success-quotes', detail.slice(page * pageSize, (page + 1) * pageSize).map(row =>
-      [row.number, row.date, row.customer, sellerOf(row), outcomes[row.outcome], row.status]));
+      [row.number, row.date, row.customer, sellerOf(row), outcomes[row.outcome], row.status, receiptNet(row.receiptNetCents)]));
     $('success-prev').disabled = page === 0;
     $('success-next').disabled = page + 1 >= pages;
     $('success-page').textContent = detail.length ? `หน้า ${page + 1} จาก ${pages} · ${thaiNumber.format(detail.length)} ใบ` : 'ไม่มีใบเสนอราคาที่ตรงตัวกรอง';

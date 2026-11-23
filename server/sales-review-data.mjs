@@ -154,11 +154,12 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   const excluded = doc.isDelete === true || doc.isDelete === 'true' || ['void','awaiting'].includes(status);
   const date = String(doc.publishedOn || doc.documentDate || '').slice(0, 10);
   const seller = String(doc.salesName || '').trim().replace(/\s+/g, ' ') || 'ไม่ระบุเซลส์';
-  const includesVat = String(doc.isVatInclusive).toLowerCase() === 'true';
-  const afterDiscountBeforeVat = includesVat ? base : amount(doc.totalAfterDiscount);
   if (!excluded) receiptTotals.push([
    String(doc.documentId), String(doc.documentSerial ?? ''), date, seller,
-   String(doc.contactName || ''), amount(doc.grandTotal), doc.items.length === 0, afterDiscountBeforeVat,
+   String(doc.contactName || ''), null, doc.items.length === 0, base,
+   [...new Set([...reviewQuoteNumbers({}, doc), ...doc.items.flatMap(item => reviewQuoteNumbers(item, doc))])],
+   (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
+    .filter(link => String(link.referenceDocumentType) === "3").map(link => String(link.referenceId || "")),
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {
@@ -221,7 +222,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23',
  }).format(now).replace(',', '');
  return {meta: {
-  documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
+  receiptNetVersion: 1, documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,

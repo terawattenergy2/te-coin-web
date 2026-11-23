@@ -417,7 +417,10 @@ export async function handler(req,res){
   if (req.method === 'GET' && route === '/sales-review/sale-success') {
    if (environment !== 'v1') return reply(503, {message: 'ต้องเชื่อม FlowAccount Production'});
    if (!saleSuccessPending && (!saleSuccessCache || Date.now() - Date.parse(saleSuccessCache.loadedAt) >= 300000)) {
-    saleSuccessPending = loadSaleSuccess(flow)
+    saleSuccessPending = (async () => {
+     const snapshot = hosted ? JSON.parse(await hostedReview.data()) : null;
+     return loadSaleSuccess(flow, snapshot?.meta.receiptNetVersion === 1 ? snapshot.receiptTotals : []);
+    })()
      .then(data => (saleSuccessCache = data))
      .finally(() => { saleSuccessPending = undefined; });
    }

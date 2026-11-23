@@ -83,7 +83,7 @@ const downloadSalesWorkbook = (() => {
           item.docs.size, item.amount];
       })];
     const lines = [['วันที่', 'เลขใบเสร็จรับเงิน', 'เซลส์', 'ลูกค้า', 'สินค้า', 'ยี่ห้อ', 'หมวด',
-      'จำนวน', 'หน่วย', 'ยอดตามรายการ', 'ก่อน VAT ที่ปันส่วน', 'สถานะ', 'รายละเอียด'],
+      'จำนวน', 'หน่วย', 'ยอดตามรายการ', 'ยอดสุทธิที่ปันส่วน (ไม่รวม VAT)', 'สถานะ', 'รายละเอียด'],
       ...[...filtered].sort((a, b) => b[2].localeCompare(a[2]) || b[1].localeCompare(a[1])).map(row => [
         row[2], row[1], row[3], row[4], row[6], row[7], row[8], row[9], row[10], row[11], row[12],
         statusNames[row[13]] || row[13], row[17],

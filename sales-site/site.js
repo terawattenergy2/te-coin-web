@@ -247,7 +247,11 @@ function setReportFrame() {
     grouped[3] = name;
     return grouped;
   });
-  const payload = JSON.stringify({...dataset, rows}).replace(/</g, '\\u003c');
+  const payload = JSON.stringify({...dataset, rows, receiptTotals: dataset.receiptTotals?.map(receipt => {
+    const grouped = [...receipt];
+    grouped[3] = canonicalSeller(receipt[3]);
+    return grouped;
+  })}).replace(/</g, '\\u003c');
   const groupedHtml = html.replace(datasetPattern, (_, start, original, end) => start + payload + end);
   frame.srcdoc = groupedHtml.replace(/<head>/i, '<head><meta name="crm-report" content="all-brands"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'">');
 }

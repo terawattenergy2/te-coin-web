@@ -7,7 +7,7 @@ const outcomes = new Map([
   ['draft', 'excluded'],
 ]);
 
-export async function loadSaleSuccess(flow) {
+export async function loadSaleSuccess(flow, receiptTotals = []) {
   const pageSize = 200;
   const quotes = new Map();
   for (let page = 1; page <= 100; page++) {
@@ -34,7 +34,23 @@ export async function loadSaleSuccess(flow) {
       });
     }
     if (quotes.size >= total && (!total || list.length)) {
-      const rows = [...quotes.values()].filter(quote => quote.outcome !== 'excluded');
+      const idsByNumber = new Map();
+      for (const [id, quote] of quotes) {
+        const number = quote.number.toUpperCase();
+        idsByNumber.set(number, idsByNumber.has(number) ? null : id);
+      }
+      const netByQuote = new Map();
+      for (const [, , , , , , , net, numbers = [], ids = []] of receiptTotals) {
+        if (!Number.isFinite(net)) continue;
+        const candidates = new Set([...ids, ...numbers.map(number => idsByNumber.get(number))]
+          .filter(id => quotes.has(id)));
+        if (candidates.size !== 1) continue;
+        const [id] = candidates;
+        const cents = Math.sign(net) * Math.round(Math.abs(net) * 100);
+        netByQuote.set(id, (netByQuote.get(id) ?? 0) + cents);
+      }
+      const rows = [...quotes].filter(([, quote]) => quote.outcome !== 'excluded')
+        .map(([id, quote]) => ({...quote, receiptNetCents: netByQuote.get(id) ?? null}));
       rows.sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
       return {rows, loadedAt: new Date().toISOString()};
     }
