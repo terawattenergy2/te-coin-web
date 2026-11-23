@@ -211,24 +211,37 @@
     const rows = receiptGroups[chart]?.get(key) ?? [];
     const docs = [...groupReceiptRows(rows, row => row[0]).values()].map(lines => {
       const [id, serial, date] = lines[0];
-      return {id, serial, date, net: receiptSummary(lines).total};
+      const items = lines.filter(row => row[5] !== unallocatedKey).map(row => ({
+        name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10],
+      }));
+      return {id, serial, date, net: receiptSummary(lines).total, items};
     }).sort((a, b) => b.date.localeCompare(a.date) || b.serial.localeCompare(a.serial));
     const heading = key === otherCategory ? 'หมวดอื่น ๆ' : key;
     const context = chart === 'categories' ? ` · ${selectedCategoryPeriod}` : '';
-    const columns = ['เลขที่เอกสาร', 'วันที่', 'ยอดสุทธิที่ใช้ในกราฟ (ไม่รวม VAT)'];
-    receiptExport = [['ใบเสร็จที่ใช้ในกราฟ', [columns, ...docs.map(doc => [doc.serial, doc.date, doc.net])], [24, 18, 42]]];
+    const columns = ['เลขที่เอกสาร', 'วันที่ใบเสร็จ', 'ยอดสุทธิที่ใช้ในกราฟ (ไม่รวม VAT)'];
+    const itemRows = docs.flatMap(doc => doc.items.map(item =>
+      [doc.serial || doc.id, doc.date, item.name, item.quantity, item.unit]));
+    receiptExport = [
+      ['ใบเสร็จที่ใช้ในกราฟ', [columns, ...docs.map(doc => [doc.serial || doc.id, doc.date, doc.net])], [24, 18, 42]],
+      ['รายละเอียดสินค้า', [['เลขที่เอกสาร', 'วันที่ใบเสร็จ', 'สินค้า', 'จำนวน', 'หน่วย'], ...itemRows], [24, 18, 56, 14, 14]],
+    ];
     $('dashboardDetailTitle').textContent = `ใบเสร็จ · ${heading}${context}`;
     $('dashboardReceiptsBack').hidden = !fromDetail;
     $('dashboardDetailBody').innerHTML = `<p class="dashboard-caption">
       ${num(docs.length)} ใบ · รวม ${money(receiptSummary(rows).total)} บาท
-      · ยอดตามส่วนที่ใช้ในกราฟและตัวกรองปัจจุบัน</p>
-      ${docs.length ? `<div class="scroll"><table><thead><tr>${columns.map(text => `<th scope="col">${E(text)}</th>`).join('')}</tr></thead>
-        <tbody>${docs.map(({id, serial, date, net}) => {
+      · ยอดและรายการสินค้าตามตัวกรองของกราฟ</p>
+      ${docs.length ? `<div class="scroll"><table><thead><tr>${[...columns.slice(0, 2), 'สินค้า / จำนวน', columns[2]].map(text => `<th scope="col">${E(text)}</th>`).join('')}</tr></thead>
+        <tbody>${docs.map(({id, serial, date, net, items}) => {
           const number = E(serial || id);
           const link = /^\d{1,20}$/.test(id)
             ? `<a href="https://advance.flowaccount.com/N355072/business/receipts/${id}" target="_blank" rel="noopener noreferrer" aria-label="เปิด ${number} ใน FlowAccount">${number}</a>`
             : number;
-          return `<tr><td>${link}</td><td>${E(date)}</td><td>${money(net)}</td></tr>`;
+          const products = items.length
+            ? `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit}) =>
+              `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}</li>`
+            ).join('')}</ul>`
+            : 'ไม่มีรายการสินค้าที่ระบุได้จากข้อมูลในกราฟ';
+          return `<tr><td>${link}</td><td>${E(date)}</td><td>${products}</td><td>${money(net)}</td></tr>`;
         }).join('')}</tbody></table></div>` : '<p>ไม่มีใบเสร็จตามตัวกรอง</p>'}`;
     if (!detailDialog.open) {
       detailKey = chart;

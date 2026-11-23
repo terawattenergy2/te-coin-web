@@ -101,6 +101,8 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 .dashboard-kpi small { display: block; margin-bottom: 6px; }
 .dashboard-kpi strong { display: block; font-size: clamp(1rem, 2.3vw, 1.7rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .dashboard-panel h3 { margin: 0 0 12px; }
+.dashboard-receipt-items { margin: 0; padding-inline-start: 1.2em; }
+.dashboard-receipt-items li + li { margin-block-start: .25em; }
 .dashboard-caption { color: #52677e; margin: 0 0 14px; font-size: .84rem; }
 .dashboard-columns { display: flex; padding: 0 2px; margin-bottom: 20px; gap: clamp(3px, 1vw, 10px); }
 .dashboard-point { flex: 1; min-width: 0; text-align: center; }
