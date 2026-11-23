@@ -50,6 +50,12 @@ const reviewViews = $('review-views');
 let selectedReview = 'products';
 let sellerAliases = new Map();
 let rawReport;
+let productGroups = new Map();
+let productGroupVersion = 0;
+let editingProduct;
+let savingProduct = false;
+const productKey = name => String(name ?? '').normalize('NFKC').trim().toLowerCase()
+  .replace(/ß/g, 'ss').replace(/ς/g, 'σ').replace(/\s+/g, ' ');
 let quotePending;
 let quoteNamesLoaded = false;
 let groupReadSucceeded = false;
@@ -130,6 +136,7 @@ const labels = new Map([
   ['flow-only', 'มีใน FlowAccount เท่านั้น'],
   ['sheet-only', 'มีใน Sheet เท่านั้น'],
   ['conflict', 'พบหลายกลุ่มใน Sheet'],
+  ['receipt-only', 'พบชื่อในใบเสร็จ'],
 ]);
 for (const [value, label] of labels) $('audit-filter').add(new Option(label, value));
 
@@ -187,25 +194,107 @@ views.addEventListener('click', event => {
   if (view) showView(view);
 });
 
+function reportProducts() {
+  return new Map((rawReport?.dataset.products ?? []).map(product => [productKey(product.name), product]));
+}
+
+function effectiveProduct(name, fallback, catalog = auditRows?.find(row => row.name === name)) {
+  const key = productKey(name);
+  return productGroups.get(key) ?? fallback.get(key) ??
+    (catalog?.crmBrand ? {brand:catalog.crmBrand, category:catalog.crmCategory} : undefined);
+}
+
 function renderAudit() {
   const query = $('audit-search').value.trim().normalize('NFKC').toLowerCase();
   const filter = $('audit-filter').value;
-  const rows = auditRows.filter(row => (!filter || row.status === filter) &&
-    [row.name, row.code, row.category, row.model, row.main, row.group]
-      .some(value => String(value ?? '').normalize('NFKC').toLowerCase().includes(query)));
+  const fallback = reportProducts();
+  const catalogNames = new Set(auditRows.map(row => productKey(row.name)).filter(Boolean));
+  const entries = [...auditRows, ...[...fallback].filter(([key]) => key && !catalogNames.has(key) && !/^[–—-]+$/.test(key))
+    .map(([, product]) => ({name: product.name, status: 'receipt-only'}))];
+  const rows = entries.filter(row => {
+    const grouping = effectiveProduct(row.name, fallback, row);
+    return (!filter || row.status === filter) &&
+      [row.name, row.code, row.category, row.model, row.main, row.group, grouping?.brand, grouping?.category]
+        .some(value => String(value ?? '').normalize('NFKC').toLowerCase().includes(query));
+  });
   const fragment = document.createDocumentFragment();
   for (const row of rows) {
     const tr = document.createElement('tr');
-    for (const value of [row.name, row.code, row.category, row.model, row.main, row.group, labels.get(row.status)]) {
+    const group = effectiveProduct(row.name, fallback, row);
+    for (const value of [row.name, row.code, row.category, row.model, row.main, row.group, labels.get(row.status),
+      group ? group.brand + ' / ' + group.category : null]) {
       const td = document.createElement('td');
       td.textContent = value || '—';
       tr.append(td);
     }
+    const editCell = document.createElement('td');
+    if (productKey(row.name)) {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.dataset.productName = row.name;
+      edit.textContent = 'จัดประเภท';
+      edit.setAttribute('aria-label', 'จัดประเภท ' + row.name);
+      editCell.append(edit);
+    }
+    tr.append(editCell);
     fragment.append(tr);
   }
   $('audit-rows').replaceChildren(fragment);
-  $('audit-status').textContent = rows.length ? `แสดง ${rows.length.toLocaleString('th-TH')} จาก ${auditRows.length.toLocaleString('th-TH')} รายการ` : 'ไม่พบรายการตามตัวกรอง';
+  $('audit-status').textContent = rows.length ? `แสดง ${rows.length.toLocaleString('th-TH')} จาก ${entries.length.toLocaleString('th-TH')} รายการ` : 'ไม่พบรายการตามตัวกรอง';
 }
+
+const productEditor = $('product-group-editor');
+$('audit-rows').addEventListener('click', event => {
+  const name = event.target.closest('[data-product-name]')?.dataset.productName;
+  if (!name || savingProduct) return;
+  editingProduct = name;
+  const fallback = reportProducts();
+  const group = effectiveProduct(name, fallback);
+  const options = [...fallback.values(), ...productGroups.values()];
+  for (const [field, id] of [['brand', 'product-group-brands'], ['category', 'product-group-categories']]) {
+    $(id).replaceChildren(...[...new Set(options.map(product => product[field]).filter(Boolean))].sort()
+      .map(value => new Option(value)));
+  }
+  $('product-group-name').textContent = name;
+  $('product-group-brand').value = group?.brand ?? '';
+  $('product-group-category').value = group?.category ?? '';
+  $('product-group-status').textContent = '';
+  $('product-group-reset').disabled = !productGroups.has(productKey(name));
+  productEditor.showModal();
+});
+
+async function saveProductGroup(reset) {
+  if (savingProduct || !editingProduct) return;
+  const epoch = loginEpoch;
+  const payload = {name:editingProduct, brand:$('product-group-brand').value,
+    category:$('product-group-category').value, reset};
+  savingProduct = true;
+  for (const id of ['product-group-save', 'product-group-reset', 'product-group-close']) $(id).disabled = true;
+  $('product-group-status').textContent = 'กำลังบันทึกหมวดสินค้า…';
+  try {
+    const {group} = await json(await reportRequest('save-product-group', 'POST', undefined, payload));
+    if (epoch !== loginEpoch) return;
+    productGroupVersion++;
+    if (group.reset) productGroups.delete(group.productKey);
+    else productGroups.set(group.productKey, group);
+    if (rawReport) setReportFrame();
+    renderAudit();
+    productEditor.close();
+    $('audit-status').textContent = group.reset ? 'คืนค่าจัดประเภทอัตโนมัติแล้ว' : 'บันทึกหมวดสินค้าและอัปเดตรายงาน CRM แล้ว';
+  } catch (error) {
+    if (epoch === loginEpoch) $('product-group-status').textContent = error.message;
+  } finally {
+    if (epoch === loginEpoch) {
+      savingProduct = false;
+      $('product-group-save').disabled = $('product-group-close').disabled = false;
+      $('product-group-reset').disabled = !productGroups.has(productKey(editingProduct));
+    }
+  }
+}
+$('product-group-form').onsubmit = event => { event.preventDefault(); saveProductGroup(false); };
+$('product-group-reset').onclick = () => saveProductGroup(true);
+$('product-group-close').onclick = () => productEditor.close();
+productEditor.addEventListener('cancel', event => { if (savingProduct) event.preventDefault(); });
 
 async function loadAudit() {
   if (auditBusy) return;
@@ -290,6 +379,12 @@ function showLogin(message = '') {
   selectedReview = 'products';
   views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = reviewPanel.hidden = true;
   rawReport = quotePending = undefined;
+  productGroups.clear();
+  productGroupVersion++;
+  editingProduct = undefined;
+  savingProduct = false;
+  $('product-group-save').disabled = $('product-group-close').disabled = false;
+  if (productEditor.open) productEditor.close();
   quoteNamesLoaded = groupReadSucceeded = false;
   sellerAliases.clear();
   sellerReview.reset();
@@ -307,12 +402,21 @@ function setReportFrame() {
   const {html, dataset} = rawReport;
   const rows = dataset.rows.map(row => {
     const name = canonicalSeller(row[3]);
-    if (name === row[3]) return row;
+    const override = productGroups.get(row[5]);
+    if (name === row[3] && !override) return row;
     const grouped = [...row];
     grouped[3] = name;
+    if (override) {
+      grouped[7] = override.brand;
+      grouped[8] = override.category;
+    }
     return grouped;
   });
-  const payload = JSON.stringify({...dataset, rows, receiptTotals: dataset.receiptTotals?.map(receipt => {
+  const products = dataset.products.map(product => {
+    const override = productGroups.get(product.key);
+    return override ? {...product, brand:override.brand, category:override.category, reason:'จัดประเภทใน CRM'} : product;
+  });
+  const payload = JSON.stringify({...dataset, rows, products, receiptTotals: dataset.receiptTotals?.map(receipt => {
     const grouped = [...receipt];
     grouped[3] = canonicalSeller(receipt[3]);
     return grouped;
@@ -322,10 +426,12 @@ function setReportFrame() {
 }
 async function openReport() {
   const epoch = loginEpoch;
+  const productVersion = productGroupVersion;
   try {
-    const [response, groupResult] = await Promise.all([
+    const [response, groupResult, productResult] = await Promise.all([
       reportRequest('report'),
       reportRequest('seller-groups').then(json).catch(error => ({error})),
+      reportRequest('product-groups').then(json).catch(error => ({error})),
     ]);
     if (!response.ok) await json(response);
     const html = await response.text();
@@ -339,7 +445,11 @@ async function openReport() {
       sellerReview.showGroups(groupResult.groups);
       saleSuccess.regroup();
     }
+    if (productVersion === productGroupVersion && productResult.groups) {
+      productGroups = new Map(productResult.groups.map(group => [group.productKey, group]));
+    }
     rawReport = {html, dataset};
+    if (auditRows) renderAudit();
     sellerReview.addNames(dataset.rows.map(row => row[3]));
     setReportFrame();
     frame.hidden = false;
@@ -347,7 +457,7 @@ async function openReport() {
     showView(selectedView);
     $('logout').hidden = false;
     setLoginVisible(false);
-    status(groupResult.error ? 'โหลดกลุ่มชื่อเซลส์ไม่ได้ ผลอาจยังแยกตามชื่อในเอกสาร' : '');
+    status([groupResult.error && 'โหลดกลุ่มชื่อเซลส์ไม่ได้', productResult.error && 'โหลดหมวดสินค้าที่บันทึกไว้ไม่ได้'].filter(Boolean).join(' · '));
   } catch (error) {
     if (epoch !== loginEpoch) return;
     if (error.status === 401 || error.status === 403) showLogin(error.message);

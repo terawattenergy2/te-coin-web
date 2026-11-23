@@ -100,7 +100,7 @@
 <button type="button" data-review="sellers" aria-pressed="false" aria-controls="seller-groups">ตรวจสอบชื่อเซลส์</button>
 </nav>
 <section id="audit" aria-label="ตรวจสอบการจัดกลุ่มสินค้า" hidden>
-<p>เทียบชื่อสินค้าใน FlowAccount Production กับรหัสรุ่นในแท็บ Stock Profit</p>
+<p>เทียบชื่อสินค้าใน FlowAccount กับ Stock Profit และกำหนดยี่ห้อ / หมวดที่ใช้ในรายงาน CRM</p>
 <div class="toolbar">
 <label>ค้นหาชื่อสินค้า รหัส หรือหมวด<input id="audit-search" type="search"></label>
 <label>สถานะ<select id="audit-filter"><option value="">ทั้งหมด</option></select></label>
@@ -109,8 +109,27 @@
 <div id="audit-loading" class="loading-slot" hidden></div>
 <p id="audit-status" role="status"></p>
 <div class="audit-scroll" tabindex="0" aria-label="ตารางเปรียบเทียบสินค้า">
-<table><thead><tr><th scope="col">สินค้าใน FlowAccount</th><th scope="col">รหัสสินค้า</th><th scope="col">หมวดใน FlowAccount</th><th scope="col">รุ่นใน Sheet</th><th scope="col">ประเภทหลัก</th><th scope="col">กลุ่มใน Sheet</th><th scope="col">สถานะ</th></tr></thead><tbody id="audit-rows"></tbody></table>
+<table><thead><tr><th scope="col">สินค้าใน FlowAccount</th><th scope="col">รหัสสินค้า</th><th scope="col">หมวดใน FlowAccount</th><th scope="col">รุ่นใน Sheet</th><th scope="col">ประเภทหลัก</th><th scope="col">กลุ่มใน Sheet</th><th scope="col">สถานะ</th><th scope="col">ยี่ห้อ / หมวดใน CRM</th><th scope="col">จัดประเภท</th></tr></thead><tbody id="audit-rows"></tbody></table>
 </div>
+<dialog id="product-group-editor" aria-labelledby="product-group-title">
+<form id="product-group-form">
+<div class="product-group-heading">
+<h2 id="product-group-title">จัดประเภทสินค้าใน CRM</h2>
+<button type="button" id="product-group-close" aria-label="ปิด">×</button>
+</div>
+<p id="product-group-name"></p>
+<p>ใช้กับบรรทัดที่มีชื่อสินค้านี้ในรายงาน CRM</p>
+<label>ยี่ห้อ / กลุ่ม<input id="product-group-brand" list="product-group-brands" maxlength="100" required></label>
+<datalist id="product-group-brands"></datalist>
+<label>หมวดสินค้า<input id="product-group-category" list="product-group-categories" maxlength="160" required></label>
+<datalist id="product-group-categories"></datalist>
+<p id="product-group-status" role="status"></p>
+<div class="toolbar">
+<button type="submit" id="product-group-save">บันทึกหมวด</button>
+<button type="button" id="product-group-reset">ใช้การจัดประเภทอัตโนมัติ</button>
+</div>
+</form>
+</dialog>
 </section>
 <section id="seller-groups" class="seller-review" hidden aria-label="ตรวจสอบชื่อเซลส์">
 <p>เลือกชื่อที่เป็นคนเดียวกัน ตั้งชื่อหลัก แล้วกดยืนยันเพื่อรวมยอดทั้งสามรายงาน</p>

@@ -28,7 +28,7 @@ const sigen = [
 ];
 
 const capitalize = name => name[0].toUpperCase() + name.slice(1);
-function classify(name) {
+export function classify(name) {
  const text = name.normalize('NFC').toLowerCase().replace(/\s+/g, ' ');
  if (depositPattern.test(text)) return ['เงินมัดจำสินค้า', 'มัดจำ/รับเงินล่วงหน้า', 'ดูสินค้าจากเอกสารอ้างอิง'];
  if (/sigenergy|sigen|ซิกเอน|ซิเจน/.test(text)) {

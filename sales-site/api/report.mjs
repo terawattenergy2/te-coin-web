@@ -3,6 +3,8 @@ const reportRoutes = new Map([
   ['seller-groups', ['GET', '/seller-groups']],
   ['confirm-sellers', ['POST', '/seller-groups']],
   ['sale-success', ['GET', '/sale-success']],
+  ['product-groups', ['GET', '/product-groups']],
+  ['save-product-group', ['POST', '/product-groups']],
   ['audit', ['GET', '/product-audit']],
   ['report', ['GET', '']],
   ['refresh', ['POST', '/refresh']],
@@ -30,10 +32,10 @@ export default async function handler(req, res) {
   try {
     const headers = {Authorization: authorization};
     let body;
-    if (route === 'confirm-sellers') {
+    if (route === 'confirm-sellers' || route === 'save-product-group') {
       headers['Content-Type'] = 'application/json';
       body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
-      if (body.length > 24000) return res.status(413).json({message: 'ข้อมูลการรวมชื่อมีขนาดเกินกำหนด'});
+      if (body.length > 24000) return res.status(413).json({message: 'ข้อมูลมีขนาดเกินกำหนด'});
     }
     const response = await fetch(source, {method: req.method, headers, body,
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(280000)});

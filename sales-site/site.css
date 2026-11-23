@@ -213,3 +213,16 @@ body.dashboard-detail-open #report::after {
   animation: crm-loading-spin .8s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) { .success-updating::before { animation: none; } }
+
+#product-group-editor {
+  width: min(30rem, calc(100% - 2rem));
+  border: 1px solid #bdcfe5;
+  border-radius: 1rem;
+  color: var(--ink, #172c43);
+}
+#product-group-editor::backdrop { background: #152d4880; }
+#product-group-form { display: grid; gap: .65rem; }
+#product-group-form p { margin: 0; overflow-wrap: anywhere; }
+#product-group-form label { display: grid; gap: .25rem; }
+.product-group-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.product-group-heading h2 { margin: 0; }

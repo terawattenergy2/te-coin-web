@@ -1,4 +1,6 @@
 import {createSellerGroupStore, parseSellerGroup} from './seller-groups.mjs';
+import {createProductGroupStore, parseProductGroup} from './product-groups.mjs';
+import {classify} from './sales-review-data.mjs';
 import {loadSaleSuccess} from './sale-success.mjs';
 import {buildModelSegments, modelKey} from './sales-product-classifier.mjs';
 import http from 'node:http';
@@ -64,6 +66,7 @@ const reportPath = config.FLOWACCOUNT_SALES_REVIEW_PATH || new URL('./sales-revi
 const hostedReview = createHostedReview({
  flow, url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source,
 });
+const productGroups = createProductGroupStore({url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source});
 const sellerGroups = createSellerGroupStore({url: sb, key: config.TERACOIN_REVIEW_STORAGE_KEY, source});
 const reviewSync = createReviewSync({
  flow, path: reportPath, enabled: environment === 'v1' && Boolean(source),
@@ -406,6 +409,14 @@ export async function handler(req,res){
    if (matches.length !== 1) return reply(409, {message: 'ยืนยันลูกค้า FlowAccount ไม่ได้ กรุณาค้นหาใหม่'});
    return reply(200, {...await loadCustomerPurchases(flow, matches[0]), loadedAt: new Date().toISOString()});
   }
+  if (route === '/sales-review/product-groups') {
+   if (req.method === 'GET') return reply(200, {groups: await productGroups.read()});
+   if (req.method !== 'POST') return reply(405, {message: 'วิธีเรียก API ไม่ถูกต้อง'});
+   const group = parseProductGroup(await body(req));
+   if (!group) return reply(400, {message: 'กรุณาระบุชื่อสินค้า ยี่ห้อ และหมวดใน CRM'});
+   await productGroups.save(group, user.id);
+   return reply(200, {group});
+  }
   if (route === '/sales-review/seller-groups') {
    if (req.method === 'POST') {
     const group = parseSellerGroup(await body(req));
@@ -445,7 +456,8 @@ export async function handler(req,res){
       const key = modelKey(product.name);
       const match = segments.get(key);
       seen.add(key);
-      return {name: product.name, code: product.code, category: product.categoryName, model: models.get(key),
+      const [crmBrand, crmCategory] = classify(String(product.name ?? ''));
+      return {name: product.name, code: product.code, category: product.categoryName, model: models.get(key), crmBrand, crmCategory,
        main: match?.main, group: match?.group, status: match ? 'matched' : match === null ? 'conflict' : 'flow-only'};
      });
      for (const [main, group, model] of sheet) {
