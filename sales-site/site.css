@@ -195,3 +195,21 @@ body.dashboard-detail-open #report::after {
 @media (prefers-reduced-motion: reduce) {
   .loading-spinner, .loading-track span { animation: none; }
 }
+
+.success-updating {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #426386;
+}
+.success-updating::before {
+  content: "";
+  flex: none;
+  width: .85rem;
+  height: .85rem;
+  border: 2px solid #ccdcf4;
+  border-top-color: #2165b1;
+  border-radius: 50%;
+  animation: crm-loading-spin .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .success-updating::before { animation: none; } }

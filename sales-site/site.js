@@ -33,6 +33,7 @@ async function withLoading(area, title, description, action) {
 }
 
 const storageKey = 'terawatt.sales.session';
+const quoteCacheKey = 'terawatt.crm.sale-success.v1';
 const frame = $('frame');
 let session;
 let refreshPromise;
@@ -53,9 +54,31 @@ let quotePending;
 let quoteNamesLoaded = false;
 let groupReadSucceeded = false;
 const canonicalSeller = name => sellerAliases.get(String(name ?? '').trim()) ?? name;
-const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading);
+const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading, readCachedQuotes);
 const sellerReview = createSellerReview(payload => withLoading('seller', 'กำลังบันทึกกลุ่มชื่อเซลส์',
   'กำลังอัปเดตชื่อหลักในรายงาน CRM', async () => json(await reportRequest('confirm-sellers', 'POST', undefined, payload))), updateGroups);
+
+function readCachedQuotes() {
+  const owner = session?.user?.id;
+  if (!owner) return;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(quoteCacheKey));
+    if (cached?.owner === owner && Array.isArray(cached.data?.rows) &&
+        Number.isFinite(Date.parse(cached.data.loadedAt))) return cached.data;
+  } catch {
+    // A missing or unreadable cache falls through to the report request.
+  }
+}
+
+function cacheQuotes(data) {
+  const owner = session?.user?.id;
+  if (!owner) return;
+  try {
+    sessionStorage.setItem(quoteCacheKey, JSON.stringify({owner, data}));
+  } catch {
+    // Keep working in memory if browser storage is unavailable or full.
+  }
+}
 
 async function loadQuotes() {
   if (quotePending) return quotePending;
@@ -63,6 +86,7 @@ async function loadQuotes() {
   const request = reportRequest('sale-success').then(json).then(data => {
     if (epoch === loginEpoch) {
       quoteNamesLoaded = true;
+      cacheQuotes(data);
       sellerReview.addNames(data.rows.map(row => row.seller));
       sellerReview.status('');
     }
@@ -254,6 +278,7 @@ function showLogin(message = '') {
   loginEpoch++;
   for (const slot of loaders.keys()) { slot.hidden = true; slot.replaceChildren(); }
   loaders.clear();
+  try { sessionStorage.removeItem(quoteCacheKey); } catch {}
   save(null);
   selectedView = 'sales';
   auditRows = undefined;

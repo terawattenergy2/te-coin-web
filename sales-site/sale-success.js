@@ -31,7 +31,7 @@ function counts(rows) {
   return result;
 }
 
-export function createSaleSuccess(request, canonicalSeller, beginLoading) {
+export function createSaleSuccess(request, canonicalSeller, beginLoading, readCache) {
   const sellerOf = row => canonicalSeller(row.seller) || missingSeller;
   let data;
   let pending = false;
@@ -95,30 +95,43 @@ export function createSaleSuccess(request, canonicalSeller, beginLoading) {
     $('success-page').textContent = detail.length ? `หน้า ${page + 1} จาก ${pages} · ${thaiNumber.format(detail.length)} ใบ` : 'ไม่มีใบเสนอราคาที่ตรงตัวกรอง';
   }
 
+  function useReport(next) {
+    data = next;
+    const selectedYear = year.value;
+    const years = [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse();
+    year.replaceChildren(year.options[0], ...years.map(value => new Option(value, value)));
+    if (years.includes(selectedYear)) year.value = selectedYear;
+    updateSellerOptions();
+    render();
+  }
+
+  function reportTime() {
+    return `ข้อมูล ณ ${bangkokDate.format(new Date(data.loadedAt))} (เวลาไทย)`;
+  }
+
   async function load() {
     if (pending) return;
     const requestEpoch = epoch;
     pending = true;
     refresh.disabled = true;
-    status.textContent = '';
-    const finish = beginLoading('success', 'กำลังโหลด Sale Success',
+    const showingPrevious = Boolean(data);
+    status.classList.toggle('success-updating', showingPrevious);
+    status.textContent = showingPrevious ? reportTime() + ' · กำลังตรวจข้อมูลใหม่…' : '';
+    const finish = showingPrevious ? undefined : beginLoading('success', 'กำลังโหลด Sale Success',
       'กำลังไล่เลขอ้างอิงใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จจาก FlowAccount');
     try {
       const next = await request();
       if (requestEpoch !== epoch) return;
-      data = next;
-      const selectedYear = year.value;
-      const years = [...new Set(data.rows.map(row => row.date.slice(0, 4)).filter(value => /^\d{4}$/.test(value)))].sort().reverse();
-      year.replaceChildren(year.options[0], ...years.map(value => new Option(value, value)));
-      if (years.includes(selectedYear)) year.value = selectedYear;
-      updateSellerOptions();
-      render();
-      status.textContent = `ข้อมูล ณ ${bangkokDate.format(new Date(data.loadedAt))} (เวลาไทย)`;
+      if (!data || Date.parse(next.loadedAt) > Date.parse(data.loadedAt)) useReport(next);
+      status.textContent = reportTime();
     } catch (error) {
-      if (requestEpoch === epoch) status.textContent = error.message;
-    } finally {
-      finish();
       if (requestEpoch === epoch) {
+        status.textContent = data ? reportTime() + ' · อัปเดตไม่สำเร็จ ' + error.message : error.message;
+      }
+    } finally {
+      finish?.();
+      if (requestEpoch === epoch) {
+        status.classList.remove('success-updating');
         pending = false;
         refresh.disabled = false;
       }
@@ -176,10 +189,17 @@ export function createSaleSuccess(request, canonicalSeller, beginLoading) {
   refresh.onclick = load;
 
   return {
-    open() { if (!data) load(); },
+    open() {
+      if (!data && !pending) {
+        const cached = readCache();
+        if (cached) useReport(cached);
+      }
+      load();
+    },
     regroup() { updateSellerOptions(); render(); },
     reset() {
       epoch++;
+      status.classList.remove('success-updating');
       data = undefined;
       pending = false;
       page = 0;
