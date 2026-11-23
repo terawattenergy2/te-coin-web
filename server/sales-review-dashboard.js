@@ -215,7 +215,7 @@
     if (!disclosure.open) return;
     if (filterSummary.isConnected) renderFilterSummary();
     const known = filtered.filter(row => value(row) != null);
-    const dated = known.filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2]) && Number.isFinite(Date.parse(row[2])));
+    const dated = filtered.filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2]) && Number.isFinite(Date.parse(row[2])));
     $('dashboardMissing').textContent = known.length !== filtered.length
       ? `${num(filtered.length - known.length)} รายการรอตรวจยอด` : '';
 
@@ -232,7 +232,7 @@
     const kpis = [
       [$('amountLabel').textContent, summary.total],
       ['ใบเสร็จที่ตรงตัวกรอง', summary.count],
-      ['ลูกค้า', new Set(known.map(row => row[4]?.trim()).filter(Boolean)).size],
+      ['ลูกค้า', new Set(filtered.map(row => row[4]?.trim()).filter(Boolean)).size],
       ['เซลส์ตามเอกสาร', new Set(filtered.map(row => row[3])).size],
     ];
     $('dashboardKpis').innerHTML = kpis.map(([label, total], index) =>
