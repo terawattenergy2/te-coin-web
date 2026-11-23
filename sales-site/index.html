@@ -19,6 +19,7 @@
 <button type="button" data-view="review" aria-pressed="false">ตรวจสอบข้อมูล</button>
 </nav>
 </div>
+<div id="startup-loading" class="loading-slot loading-startup" hidden></div>
 <section id="login-panel" class="login-panel" aria-labelledby="login-title" hidden>
 <div class="login-brand">
 <strong>TERAWATT</strong>
@@ -33,11 +34,13 @@
 <label for="email">อีเมล<input id="email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
 <label for="password">รหัสผ่าน<input id="password" name="password" type="password" autocomplete="current-password" required></label>
 <button type="submit">เข้าสู่ระบบ</button>
+<div id="login-loading" class="loading-slot" hidden></div>
 <p id="login-status" role="status"></p>
 </form>
 </section>
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
+<div id="report-loading" class="loading-slot" hidden></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 </section>
 <section id="success" hidden aria-label="Sale Success">
@@ -59,6 +62,7 @@
 <label>ค้นหาลูกค้า / เลขใบเสนอราคา<input id="success-search" type="search"></label>
 <button type="button" id="success-refresh">โหลดข้อมูลอีกครั้ง</button>
 </div>
+<div id="success-loading" class="loading-slot" hidden></div>
 <p id="success-status" role="status"></p>
 <p id="success-selected" hidden></p>
 <p>ยอดสุทธิหลังปรับท้ายใบเสร็จ (ไม่รวม VAT) รวมเฉพาะใบเสร็จที่ชำระครบและเชื่อมกับใบเสนอราคาได้</p>
@@ -102,6 +106,7 @@
 <label>สถานะ<select id="audit-filter"><option value="">ทั้งหมด</option></select></label>
 <button id="audit-refresh" type="button">โหลดรายการใหม่</button>
 </div>
+<div id="audit-loading" class="loading-slot" hidden></div>
 <p id="audit-status" role="status"></p>
 <div class="audit-scroll" tabindex="0" aria-label="ตารางเปรียบเทียบสินค้า">
 <table><thead><tr><th scope="col">สินค้าใน FlowAccount</th><th scope="col">รหัสสินค้า</th><th scope="col">หมวดใน FlowAccount</th><th scope="col">รุ่นใน Sheet</th><th scope="col">ประเภทหลัก</th><th scope="col">กลุ่มใน Sheet</th><th scope="col">สถานะ</th></tr></thead><tbody id="audit-rows"></tbody></table>
@@ -109,6 +114,7 @@
 </section>
 <section id="seller-groups" class="seller-review" hidden aria-label="ตรวจสอบชื่อเซลส์">
 <p>เลือกชื่อที่เป็นคนเดียวกัน ตั้งชื่อหลัก แล้วกดยืนยันเพื่อรวมยอดทั้งสามรายงาน</p>
+<div id="seller-loading" class="loading-slot" hidden></div>
 <p id="seller-review-status" role="status"></p>
 <div class="seller-review-grid">
 <div>
@@ -129,7 +135,14 @@
 <ul id="seller-review-confirmed"></ul>
 </section>
 </section>
-<p id="status" role="status">กำลังเปิดรายงาน…</p>
+<p id="status" role="status"></p>
+<template id="loading-template">
+  <div class="loading-card" role="status" aria-live="polite">
+    <span class="loading-spinner" aria-hidden="true"></span>
+    <div class="loading-copy"><strong></strong><small></small></div>
+    <div class="loading-track" aria-hidden="true"><span></span></div>
+  </div>
+</template>
 </main>
 </body>
 </html>

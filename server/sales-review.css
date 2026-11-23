@@ -235,3 +235,12 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 }
 .dashboard-receipt-bar:hover, .dashboard-receipt-slice:hover { background: #edf5ff; }
 .dashboard-donut[data-receipt-pie] { cursor: pointer; }
+
+.receipt-loading { display: inline-flex; align-items: center; gap: .45rem; }
+.receipt-loading::before {
+  content: ''; width: .9rem; height: .9rem; border: 2px solid #cbdcf3;
+  border-top-color: #2165b1; border-radius: 50%;
+  animation: receipt-loading-spin .8s linear infinite;
+}
+@keyframes receipt-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .receipt-loading::before { animation: none; } }

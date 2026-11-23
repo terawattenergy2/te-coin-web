@@ -87,7 +87,7 @@ export function createSellerReview(confirm, applyGroups) {
     const epoch = generation;
     busy = true;
     render();
-    status.textContent = 'กำลังบันทึกกลุ่มชื่อเซลส์…';
+    status.textContent = '';
     try {
       const result = await confirm({canonical: name, names: [...selected]});
       if (epoch !== generation) return;

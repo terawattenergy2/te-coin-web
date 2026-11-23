@@ -281,7 +281,7 @@
     const button = event.target.closest('[data-deposit-id]');
     if (!button) return;
     button.disabled = true;
-    button.nextElementSibling.textContent = 'กำลังค้นเอกสารอ้างอิง…';
+    button.nextElementSibling.innerHTML = '<span class="receipt-loading" role="status">กำลังค้นเอกสารอ้างอิง…</span>';
     parent.postMessage({type: 'teracoin-deposit-request', id: button.dataset.depositId}, '*');
   });
 

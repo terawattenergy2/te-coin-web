@@ -3,6 +3,35 @@ import {createSaleSuccess} from './sale-success.js';
 import {authUrl, publishableKey} from './auth-config.js';
 
 const $ = id => document.getElementById(id);
+const loaders = new Map();
+function beginLoading(area, title, description) {
+  const slot = $(area + '-loading');
+  const card = $('loading-template').content.firstElementChild.cloneNode(true);
+  card.querySelector('strong').textContent = title;
+  card.querySelector('small').textContent = description;
+  if (!loaders.has(slot)) loaders.set(slot, new Set());
+  const active = loaders.get(slot);
+  active.add(card);
+  slot.replaceChildren(card);
+  slot.hidden = false;
+  return () => {
+    active.delete(card);
+    if (loaders.get(slot) !== active) return;
+    if (active.size) slot.replaceChildren([...active].at(-1));
+    else {
+      slot.replaceChildren();
+      slot.hidden = true;
+      loaders.delete(slot);
+    }
+  };
+}
+
+async function withLoading(area, title, description, action) {
+  const finish = beginLoading(area, title, description);
+  try { return await action(); }
+  finally { finish(); }
+}
+
 const storageKey = 'terawatt.sales.session';
 const frame = $('frame');
 let session;
@@ -24,8 +53,9 @@ let quotePending;
 let quoteNamesLoaded = false;
 let groupReadSucceeded = false;
 const canonicalSeller = name => sellerAliases.get(String(name ?? '').trim()) ?? name;
-const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller);
-const sellerReview = createSellerReview(async payload => json(await reportRequest('confirm-sellers', 'POST', undefined, payload)), updateGroups);
+const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading);
+const sellerReview = createSellerReview(payload => withLoading('seller', 'กำลังบันทึกกลุ่มชื่อเซลส์',
+  'กำลังอัปเดตชื่อหลักในรายงาน CRM', async () => json(await reportRequest('confirm-sellers', 'POST', undefined, payload))), updateGroups);
 
 async function loadQuotes() {
   if (quotePending) return quotePending;
@@ -48,6 +78,11 @@ function updateGroups(groups) {
   if (rawReport) setReportFrame();
 }
 async function reviewSellerNames() {
+  if (groupReadSucceeded && quoteNamesLoaded) return;
+  return withLoading('seller', 'กำลังโหลดชื่อเซลส์', 'กำลังอ่านชื่อจากใบเสร็จและใบเสนอราคา', readSellerNames);
+}
+
+async function readSellerNames() {
   const epoch = loginEpoch;
   if (!groupReadSucceeded) {
     try {
@@ -61,7 +96,7 @@ async function reviewSellerNames() {
     }
   }
   if (!quoteNamesLoaded) {
-    sellerReview.status('กำลังโหลดชื่อเพิ่มเติมจากใบเสนอราคา ใช้ชื่อจากใบเสร็จระหว่างรอได้');
+    sellerReview.status('');
     try { await loadQuotes(); }
     catch (error) { if (epoch === loginEpoch) sellerReview.status(error.message); }
   }
@@ -153,7 +188,9 @@ async function loadAudit() {
   const epoch = loginEpoch;
   auditBusy = true;
   $('audit-refresh').disabled = true;
-  $('audit-status').textContent = 'กำลังโหลดรายการสินค้าจาก FlowAccount…';
+  $('audit-status').textContent = '';
+  const finish = beginLoading('audit', 'กำลังโหลดรายการสินค้า',
+    'กำลังเทียบสินค้าใน FlowAccount กับกลุ่มใน Stock Profit');
   try {
     const {rows} = await json(await reportRequest('audit'));
     if (epoch !== loginEpoch) return;
@@ -163,6 +200,7 @@ async function loadAudit() {
   } catch (error) {
     if (epoch === loginEpoch) $('audit-status').textContent = error.message;
   } finally {
+    finish();
     if (epoch === loginEpoch) {
       auditBusy = false;
       $('audit-refresh').disabled = false;
@@ -214,6 +252,8 @@ async function reportRequest(route, method = 'GET', id, payload) {
 }
 function showLogin(message = '') {
   loginEpoch++;
+  for (const slot of loaders.keys()) { slot.hidden = true; slot.replaceChildren(); }
+  loaders.clear();
   save(null);
   selectedView = 'sales';
   auditRows = undefined;
@@ -298,23 +338,26 @@ $('login').onsubmit = async event => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button');
   button.disabled = true;
-  status('กำลังเข้าสู่ระบบ…');
+  status('');
+  const finish = beginLoading('login', 'กำลังเข้าสู่ระบบ', 'กำลังตรวจสอบบัญชีและเตรียมรายงาน CRM');
   try {
     save(await tokenRequest('password', {email:$('email').value.trim(), password:$('password').value}));
     $('password').value = '';
     await openReport();
   } catch (error) { showLogin(error.message); }
-  finally { button.disabled = false; }
+  finally { finish(); button.disabled = false; }
 };
 $('logout').onclick = () => showLogin();
 $('refresh').onclick = async () => {
   $('refresh').disabled = true;
-  status('กำลังดึงใบเสร็จจาก FlowAccount…');
+  status('');
+  const finish = beginLoading('report', 'กำลังดึงใบเสร็จล่าสุด',
+    'กำลังซิงก์ข้อมูลจาก FlowAccount และคำนวณยอดรายงานใหม่');
   try {
     await json(await reportRequest('refresh','POST'));
     if (session) await openReport();
   } catch (error) { if (session) status(error.message); }
-  finally { $('refresh').disabled = false; }
+  finally { finish(); $('refresh').disabled = false; }
 };
 window.addEventListener('message', async event => {
   if (event.source !== frame.contentWindow || !session) return;
@@ -339,4 +382,5 @@ window.addEventListener('message', async event => {
     event.source.postMessage({type:'teracoin-deposit-result',id,error:true}, '*');
   }
 });
-if (session) openReport(); else showLogin();
+if (session) withLoading('startup', 'กำลังเปิด CRM', 'กำลังเตรียมรายงานยอดขายและตัวกรอง', openReport);
+else showLogin();

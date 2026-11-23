@@ -31,7 +31,7 @@ function counts(rows) {
   return result;
 }
 
-export function createSaleSuccess(request, canonicalSeller = name => name) {
+export function createSaleSuccess(request, canonicalSeller, beginLoading) {
   const sellerOf = row => canonicalSeller(row.seller) || missingSeller;
   let data;
   let pending = false;
@@ -100,7 +100,9 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     const requestEpoch = epoch;
     pending = true;
     refresh.disabled = true;
-    status.textContent = 'กำลังตรวจใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จจาก FlowAccount…';
+    status.textContent = '';
+    const finish = beginLoading('success', 'กำลังโหลด Sale Success',
+      'กำลังไล่เลขอ้างอิงใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จจาก FlowAccount');
     try {
       const next = await request();
       if (requestEpoch !== epoch) return;
@@ -115,6 +117,7 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     } catch (error) {
       if (requestEpoch === epoch) status.textContent = error.message;
     } finally {
+      finish();
       if (requestEpoch === epoch) {
         pending = false;
         refresh.disabled = false;
