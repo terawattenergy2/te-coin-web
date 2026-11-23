@@ -249,7 +249,7 @@ function setReportFrame() {
   });
   const payload = JSON.stringify({...dataset, rows}).replace(/</g, '\\u003c');
   const groupedHtml = html.replace(datasetPattern, (_, start, original, end) => start + payload + end);
-  frame.srcdoc = groupedHtml.replace(/<head>/i, '<head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'">');
+  frame.srcdoc = groupedHtml.replace(/<head>/i, '<head><meta name="crm-report" content="all-brands"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'">');
 }
 async function openReport() {
   const epoch = loginEpoch;
