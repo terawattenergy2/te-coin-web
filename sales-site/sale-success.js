@@ -88,7 +88,7 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     page = Math.min(page, pages - 1);
     renderTable('success-quotes', detail.slice(page * pageSize, (page + 1) * pageSize).map(row =>
       [row.number, row.date, row.customer, sellerOf(row), outcomes[row.outcome], row.status,
-        row.receipts?.map(receipt => [...receipt.invoiceNumbers, receipt.number].filter(Boolean).join(' → ')).join(' · '),
+        row.receipts?.map(receipt => [...receipt.invoiceNumbers, receipt.number].filter(Boolean).join(' → ')).join(' · ') || row.receiptIssue,
         receiptNet(row.receiptNetCents)]));
     $('success-prev').disabled = page === 0;
     $('success-next').disabled = page + 1 >= pages;
@@ -100,7 +100,7 @@ export function createSaleSuccess(request, canonicalSeller = name => name) {
     const requestEpoch = epoch;
     pending = true;
     refresh.disabled = true;
-    status.textContent = 'กำลังอ่านใบเสนอราคาจาก FlowAccount…';
+    status.textContent = 'กำลังตรวจใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จจาก FlowAccount…';
     try {
       const next = await request();
       if (requestEpoch !== epoch) return;

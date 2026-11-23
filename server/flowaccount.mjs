@@ -419,7 +419,7 @@ export async function handler(req,res){
    if (!saleSuccessPending && (!saleSuccessCache || Date.now() - Date.parse(saleSuccessCache.loadedAt) >= 300000)) {
     saleSuccessPending = (async () => {
      const snapshot = hosted ? JSON.parse(await hostedReview.data()) : null;
-     return loadSaleSuccess(flow, snapshot?.meta.receiptNetVersion === 1 ? snapshot.receiptTotals : []);
+     return loadSaleSuccess(flow, snapshot?.meta.receiptNetVersion === 1 ? snapshot.receiptTotals : [], {trace: true});
     })()
      .then(data => (saleSuccessCache = data))
      .finally(() => { saleSuccessPending = undefined; });
