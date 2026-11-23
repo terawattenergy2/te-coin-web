@@ -469,6 +469,38 @@ export async function handler(req,res){
    }
    throw Error('รายการสินค้า FlowAccount เกินขอบเขตที่ตรวจสอบได้');
   }
+  if (req.method === 'GET' && route === '/sales-review/receipt-items') {
+   const id = u.searchParams.get('id') || '';
+   if (!/^\d{1,20}$/.test(id)) return reply(400, {message: 'รหัสใบเสร็จไม่ถูกต้อง'});
+   const receipt = await fetchSalesDocument('receipts/' + id, id);
+   if (String(receipt.status) !== '5' || String(receipt.statusString).toLowerCase() !== 'paid') {
+    return reply(404, {message: 'ไม่พบใบเสร็จที่ชำระครบ'});
+   }
+   const direct = documentItems(receipt).filter(item => item.name.trim() && !/^[-–—]+$/.test(item.name.trim()));
+   const toItems = (items, source) => items.map(({name, quantity, unit}) => ({name, quantity, unit, source}));
+   const sources = new Map();
+   for (const ref of [...(receipt.items || []), ...(receipt.documentReference || []), ...(receipt.referencedByMe || [])]) {
+    const type = String(ref.documentType ?? ref.referenceDocumentType ?? (ref.documentId ? 7 : ''));
+    const refId = String(ref.documentId ?? ref.referenceId ?? '');
+    if (!['7', '35'].includes(type) || !/^\d{1,20}$/.test(refId)) continue;
+    sources.set(type + ':' + refId, {type, refId, number:ref.documentSerial ?? ref.referenceDocumentSerial});
+   }
+   if (direct.length && !sources.size) return reply(200, {items:toItems(direct, receipt.documentSerial)});
+   const items = toItems(direct, receipt.documentSerial);
+   const missing = [];
+   for (const {type, refId, number} of sources.values()) {
+    try {
+     const invoice = await fetchSalesDocument(referenceTypes[type] + '/' + refId, refId);
+     const products = documentItems(invoice).filter(item => item.name.trim() && !/^[-–—]+$/.test(item.name.trim()));
+     if (products.length) items.push(...toItems(products, invoice.documentSerial || number || refId));
+     else missing.push(invoice.documentSerial || number || refId);
+    } catch (error) {
+     if (error.retryAfter) throw error;
+     missing.push(number || refId);
+    }
+   }
+   return reply(200, {items, missing});
+  }
   if (req.method === 'GET' && route === '/sales-review/deposit') {
    const id = u.searchParams.get('id') || '';
    if (!/^\d{1,20}$/.test(id)) return reply(400, {message: 'รหัสใบเสร็จไม่ถูกต้อง'});

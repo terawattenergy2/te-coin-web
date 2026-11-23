@@ -567,6 +567,22 @@ window.addEventListener('message', async event => {
     document.body.classList.toggle('dashboard-detail-open', event.data.open === true);
     return;
   }
+  if (event.data?.type === 'crm-receipt-items-request') {
+    const {id} = event.data;
+    if (typeof id !== 'string' || !/^\d{1,20}$/.test(id)) return;
+    if (!rawReport?.dataset.receiptTotals?.some(receipt => String(receipt[0]) === id)) {
+      event.source.postMessage({type:'crm-receipt-items-result', id, error:true}, '*');
+      return;
+    }
+    const epoch = loginEpoch;
+    try {
+      const {items, missing} = await json(await reportRequest('receipt-items', 'GET', id));
+      if (epoch === loginEpoch) event.source.postMessage({type:'crm-receipt-items-result', id, items, missing}, '*');
+    } catch {
+      if (epoch === loginEpoch) event.source.postMessage({type:'crm-receipt-items-result', id, error:true}, '*');
+    }
+    return;
+  }
   if (event.data?.type !== 'teracoin-deposit-request' ||
       typeof event.data.id !== 'string' || !/^\d{1,20}$/.test(event.data.id)) return;
   const {id} = event.data;

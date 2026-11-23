@@ -191,6 +191,8 @@
   };
 
   function showDetail(key) {
+    receiptItemObserver?.disconnect();
+    waitingReceiptItems.clear();
     detailKey = key;
     receiptExport = undefined;
     $('dashboardReceiptsBack').hidden = true;
@@ -207,46 +209,96 @@
     $('dashboardDetailBody').scrollTop = 0;
   }
 
+  const receiptItemCache = new Map();
+  const waitingReceiptItems = new Set();
+  let activeReceiptItem;
+  let receiptItemObserver;
+
+  function requestNextReceiptItems() {
+    if (parent === window || activeReceiptItem || !waitingReceiptItems.size) return;
+    const [id] = waitingReceiptItems;
+    waitingReceiptItems.delete(id);
+    activeReceiptItem = id;
+    parent.postMessage({type:'crm-receipt-items-request', id}, '*');
+  }
+
+  function renderReceiptItems(items) {
+    return `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit, source}) =>
+      `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}${source ? ` <small>(${E(source)})</small>` : ''}</li>`
+    ).join('')}</ul>`;
+  }
+
+  function renderReceiptLookup(result) {
+    if (!result) return 'กำลังค้นหารายการจาก FlowAccount…';
+    if (result.error) return 'ดึงรายละเอียดจาก FlowAccount ไม่สำเร็จ ลองเปิดกราฟอีกครั้ง';
+    const items = result.items?.length ? renderReceiptItems(result.items) : 'ไม่พบชื่อสินค้าในข้อมูลจาก FlowAccount';
+    return items + (result.missing?.length ? `<small>ยังไม่ได้รายละเอียดจาก ${E(result.missing.join(', '))}</small>` : '');
+  }
+
+  window.addEventListener('message', event => {
+    const result = event.data;
+    if (event.source !== parent || result?.type !== 'crm-receipt-items-result' || result.id !== activeReceiptItem) return;
+    if (!result.error) receiptItemCache.set(result.id, result);
+    $('dashboardDetailBody').querySelector(`[data-receipt-items="${result.id}"]`)?.replaceChildren(
+      document.createRange().createContextualFragment(renderReceiptLookup(result)));
+    activeReceiptItem = undefined;
+    requestNextReceiptItems();
+  });
+
   function showReceipts(chart, key, fromDetail) {
+    receiptItemObserver?.disconnect();
+    waitingReceiptItems.clear();
     const rows = receiptGroups[chart]?.get(key) ?? [];
     const docs = [...groupReceiptRows(rows, row => row[0]).values()].map(lines => {
-      const [id, serial, date] = lines[0];
+      const [receiptId, serial, date] = lines[0];
+      const id = String(receiptId);
       const items = lines.filter(row => row[5] !== unallocatedKey).map(row => ({
         name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10],
       }));
-      return {id, serial, date, net: receiptSummary(lines).total, items};
+      const hasName = lines.some(row => row[5] !== unallocatedKey && row[6]?.trim() && !/^[-–—]+$/.test(row[6].trim()));
+      return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && !hasName && /^\d{1,20}$/.test(id)};
     }).sort((a, b) => b.date.localeCompare(a.date) || b.serial.localeCompare(a.serial));
     const heading = key === otherCategory ? 'หมวดอื่น ๆ' : key;
     const context = chart === 'categories' ? ` · ${selectedCategoryPeriod}` : '';
     const columns = ['เลขที่เอกสาร', 'วันที่ใบเสร็จ', 'ยอดสุทธิที่ใช้ในกราฟ (ไม่รวม VAT)'];
-    const itemRows = docs.flatMap(doc => doc.items.map(item =>
-      [doc.serial || doc.id, doc.date, item.name, item.quantity, item.unit]));
-    receiptExport = [
+    receiptExport = () => [
       ['ใบเสร็จที่ใช้ในกราฟ', [columns, ...docs.map(doc => [doc.serial || doc.id, doc.date, doc.net])], [24, 18, 42]],
-      ['รายละเอียดสินค้า', [['เลขที่เอกสาร', 'วันที่ใบเสร็จ', 'สินค้า', 'จำนวน', 'หน่วย'], ...itemRows], [24, 18, 56, 14, 14]],
+      ['รายละเอียดสินค้า', [['เลขที่เอกสาร', 'วันที่ใบเสร็จ', 'สินค้า', 'จำนวน', 'หน่วย', 'เอกสารต้นทาง'], ...docs.flatMap(doc =>
+        (doc.lookup ? receiptItemCache.get(doc.id)?.items ?? doc.items : doc.items).map(item =>
+          [doc.serial || doc.id, doc.date, item.name, item.quantity, item.unit, item.source ?? '']))], [24, 18, 56, 14, 14, 24]],
     ];
     $('dashboardDetailTitle').textContent = `ใบเสร็จ · ${heading}${context}`;
     $('dashboardReceiptsBack').hidden = !fromDetail;
     $('dashboardDetailBody').innerHTML = `<p class="dashboard-caption">
       ${num(docs.length)} ใบ · รวม ${money(receiptSummary(rows).total)} บาท
-      · ยอดและรายการสินค้าตามตัวกรองของกราฟ</p>
+      · ยอดตามตัวกรองของกราฟ รายละเอียดจากใบอ้างอิงจะทยอยโหลดเมื่อเลื่อนดู</p>
       ${docs.length ? `<div class="scroll"><table><thead><tr>${[...columns.slice(0, 2), 'สินค้า / จำนวน', columns[2]].map(text => `<th scope="col">${E(text)}</th>`).join('')}</tr></thead>
-        <tbody>${docs.map(({id, serial, date, net, items}) => {
+        <tbody>${docs.map(({id, serial, date, net, items, lookup}) => {
           const number = E(serial || id);
           const link = /^\d{1,20}$/.test(id)
             ? `<a href="https://advance.flowaccount.com/N355072/business/receipts/${id}" target="_blank" rel="noopener noreferrer" aria-label="เปิด ${number} ใน FlowAccount">${number}</a>`
             : number;
-          const products = items.length
-            ? `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit}) =>
-              `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}</li>`
-            ).join('')}</ul>`
-            : 'ไม่มีรายการสินค้าที่ระบุได้จากข้อมูลในกราฟ';
-          return `<tr><td>${link}</td><td>${E(date)}</td><td>${products}</td><td>${money(net)}</td></tr>`;
+          const products = lookup ? renderReceiptLookup(receiptItemCache.get(id))
+            : items.length ? renderReceiptItems(items) : 'ไม่พบรายการสินค้า';
+          const lookupAttribute = lookup ? ` data-receipt-items="${id}"` : '';
+          return `<tr><td>${link}</td><td>${E(date)}</td><td${lookupAttribute}>${products}</td><td>${money(net)}</td></tr>`;
         }).join('')}</tbody></table></div>` : '<p>ไม่มีใบเสร็จตามตัวกรอง</p>'}`;
     if (!detailDialog.open) {
       detailKey = chart;
       detailDialog.showModal();
       parent.postMessage({type: 'crm-dashboard-detail', open: true}, '*');
+    }
+    receiptItemObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        receiptItemObserver.unobserve(entry.target);
+        const id = entry.target.dataset.receiptItems;
+        if (id !== activeReceiptItem && !receiptItemCache.has(id)) waitingReceiptItems.add(id);
+      }
+      requestNextReceiptItems();
+    });
+    for (const cell of $('dashboardDetailBody').querySelectorAll('[data-receipt-items]')) {
+      if (!receiptItemCache.has(cell.dataset.receiptItems)) receiptItemObserver.observe(cell);
     }
     $('dashboardDetailBody').scrollTop = 0;
     $('dashboardDetailClose').focus({preventScroll: true});
@@ -386,11 +438,13 @@
   });
   $('dashboardReceiptsBack').onclick = () => showDetail(detailKey);
   $('dashboardDetailExport').onclick = () => receiptExport
-    ? downloadSalesWorkbook(receiptExport, 'crm-chart-receipts.xlsx')
+    ? downloadSalesWorkbook(receiptExport(), 'crm-chart-receipts.xlsx')
     : exportReports([detailKey]);
   const detailDialog = $('dashboardDetail');
   $('dashboardDetailClose').onclick = () => detailDialog.close();
   detailDialog.addEventListener('close', () => {
+    receiptItemObserver?.disconnect();
+    waitingReceiptItems.clear();
     parent.postMessage({type: 'crm-dashboard-detail', open: false}, '*');
   });
 

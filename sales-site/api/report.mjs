@@ -8,6 +8,7 @@ const reportRoutes = new Map([
   ['audit', ['GET', '/product-audit']],
   ['report', ['GET', '']],
   ['refresh', ['POST', '/refresh']],
+  ['receipt-items', ['GET', '/receipt-items']],
   ['deposit', ['GET', '/deposit']],
   ['status', ['GET', '/refresh']],
 ]);
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
     return res.status(403).json({message: 'ต้นทางไม่ได้รับอนุญาต'});
   }
   const source = new URL('/integration/flowaccount/sales-review' + target[1], upstream);
-  if (route === 'deposit') {
+  if (route === 'deposit' || route === 'receipt-items') {
     const id = url.searchParams.get('id');
     if (!/^\d{1,20}$/.test(id ?? '')) return res.status(400).json({message: 'รหัสใบเสร็จไม่ถูกต้อง'});
     source.searchParams.set('id', id);
