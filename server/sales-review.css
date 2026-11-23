@@ -111,7 +111,7 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 .dashboard-point:first-child span { left: 0; transform: none; }
 .dashboard-point:last-child span { left: auto; right: 0; transform: none; }
 .dashboard-column:is(:hover, :focus) span { display: block; }
-.dashboard-panel .dashboard-chart li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 8px; font-size: .88rem; }
+.dashboard-panel .dashboard-chart li { font-size: .88rem; }
 .dashboard-panel .analysis-track { grid-column: 1 / -1; }
 #dashboardMissing { margin-block: 10px; font-size: .82rem; }
 #dashboardMissing:empty, .dashboard-filters { display: none; }
@@ -154,7 +154,7 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
 .dashboard-donut { border-radius: 50%; aspect-ratio: 1; background: conic-gradient(var(--slices)); display: grid; place-items: center; }
 .dashboard-donut::after { content: ""; width: 55%; aspect-ratio: 1; border-radius: 50%; background: white; }
 .dashboard-pie ul { list-style: none; padding: 0; margin: 0; }
-.dashboard-pie li { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; gap: 8px; align-items: baseline; font-size: .85rem; margin-block: 4px; }
+.dashboard-pie li { font-size: .85rem; margin-block: 4px; }
 .dashboard-pie i { width: 8px; height: 8px; border-radius: 50%; background: var(--slice); align-self: center; }
 .dashboard-panel .dashboard-chart { margin: 4px 0; gap: 4px; }
 .dashboard-panel .dashboard-chart li { padding: 4px 0; }
@@ -220,3 +220,18 @@ main > .card:first-child { padding-block: 14px; margin-bottom: 12px; }
     position-try-fallbacks: flip-inline, flip-block, flip-inline flip-block;
   }
 }
+
+.dashboard-receipt-bar, .dashboard-receipt-slice {
+  width: 100%; color: inherit; background: transparent; border: 0;
+  text-align: start; font: inherit; cursor: pointer;
+}
+.dashboard-receipt-bar {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .65rem; padding: .35rem;
+}
+.dashboard-receipt-bar .analysis-track { grid-column: 1 / -1; display: block; }
+.dashboard-receipt-slice {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .5rem;
+  padding: .25rem .4rem;
+}
+.dashboard-receipt-bar:hover, .dashboard-receipt-slice:hover { background: #edf5ff; }
+.dashboard-donut[data-receipt-pie] { cursor: pointer; }

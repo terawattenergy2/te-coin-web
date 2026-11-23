@@ -38,7 +38,7 @@
 </section>
 <section id="report" hidden aria-label="รายงานยอดขาย">
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
-<iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads" hidden></iframe>
+<iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 </section>
 <section id="success" hidden aria-label="Sale Success">
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>
@@ -73,7 +73,7 @@
 <ul>
 <li>FlowAccount Production · GET /v1/quotations · นับตามวันที่ออกใบเสนอราคาและชื่อเซลส์บนเอกสาร</li>
 <li>ปิดได้เมื่ออนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</li>
-<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้ โดยใช้สูตรเดียวกับรายงานยอดขาย</li>
+<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้ โดยใช้สูตรเดียวกับรายงานยอดขาย ใบเสนอราคาที่ปิดได้อาจยังไม่มีใบเสร็จชำระครบที่เชื่อมได้</li>
 </ul>
 </section>
 <div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">

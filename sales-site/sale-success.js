@@ -3,7 +3,7 @@ const outcomes = {won: 'ปิดได้', lost: 'ปิดไม่ได้'
 const missingSeller = 'ไม่ระบุเซลส์';
 const thaiNumber = new Intl.NumberFormat('th-TH');
 const money = new Intl.NumberFormat('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-const receiptNet = cents => cents == null ? '—' : money.format(cents / 100);
+const receiptNet = cents => cents == null ? 'ยังไม่พบใบเสร็จที่เชื่อมได้' : money.format(cents / 100);
 const percent = new Intl.NumberFormat('th-TH', {style: 'percent', maximumFractionDigits: 1});
 const bangkokDate = new Intl.DateTimeFormat('th-TH', {dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok'});
 const pageSize = 50;
