@@ -172,7 +172,10 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    String(doc.contactName || ''), null, doc.items.length === 0, base,
    [...new Set([...reviewQuoteNumbers({}, doc), ...doc.items.flatMap(item => reviewQuoteNumbers(item, doc))])],
    (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
-    .filter(link => String(link.referenceDocumentType) === "3").map(link => String(link.referenceId || "")),
+    .filter(link => String(link.referenceDocumentType) === '3').map(link => String(link.referenceId || '')),
+   (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
+    .filter(link => ['5', '7', '35'].includes(String(link.referenceDocumentType)) && /^\d+$/.test(String(link.referenceId)))
+    .map(link => [String(link.referenceDocumentType), String(link.referenceId), String(link.referenceDocumentSerial ?? '')]),
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {

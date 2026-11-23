@@ -73,7 +73,7 @@
 <ul>
 <li>FlowAccount Production · GET /v1/quotations · นับตามวันที่ออกใบเสนอราคาและชื่อเซลส์บนเอกสาร</li>
 <li>ปิดได้เมื่ออนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</li>
-<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้ โดยใช้สูตรเดียวกับรายงานยอดขาย ใบเสนอราคาที่ปิดได้อาจยังไม่มีใบเสร็จชำระครบที่เชื่อมได้</li>
+<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้โดยตรงหรือผ่านใบแจ้งหนี้ โดยใช้สูตรเดียวกับรายงานยอดขาย ใบเสนอราคาที่ปิดได้อาจยังไม่มีใบเสร็จชำระครบที่เชื่อมได้</li>
 </ul>
 </section>
 <div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">
@@ -87,7 +87,7 @@
 <span id="success-page" role="status"></span>
 </div>
 <div class="success-table" tabindex="0" aria-label="รายละเอียดใบเสนอราคา">
-<table><thead><tr><th scope="col">เลขใบเสนอราคา</th><th scope="col">วันที่</th><th scope="col">ลูกค้า</th><th scope="col">เซลส์</th><th scope="col">ผลลัพธ์</th><th scope="col">สถานะ FlowAccount</th><th scope="col">ยอดสุทธิใบเสร็จ (ไม่รวม VAT)</th></tr></thead><tbody id="success-quotes"></tbody></table>
+<table><thead><tr><th scope="col">เลขใบเสนอราคา</th><th scope="col">วันที่</th><th scope="col">ลูกค้า</th><th scope="col">เซลส์</th><th scope="col">ผลลัพธ์</th><th scope="col">สถานะ FlowAccount</th><th scope="col">ใบแจ้งหนี้ / ใบเสร็จอ้างอิง</th><th scope="col">ยอดสุทธิใบเสร็จ (ไม่รวม VAT)</th></tr></thead><tbody id="success-quotes"></tbody></table>
 </div>
 </section>
 <section id="review" hidden aria-label="ตรวจสอบข้อมูล">
