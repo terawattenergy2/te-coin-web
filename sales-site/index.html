@@ -104,6 +104,7 @@
 <div class="toolbar">
 <label>ค้นหาชื่อสินค้า รหัส หรือหมวด<input id="audit-search" type="search"></label>
 <label>สถานะ<select id="audit-filter"><option value="">ทั้งหมด</option></select></label>
+<label>ยี่ห้อ / กลุ่มใน CRM<select id="audit-brand"><option value="">ทั้งหมด</option></select></label>
 <button id="audit-refresh" type="button">โหลดรายการใหม่</button>
 </div>
 <div id="audit-loading" class="loading-slot" hidden></div>
@@ -125,10 +126,10 @@
 </div>
 <p id="product-group-name"></p>
 <p id="product-group-scope"></p>
-<label>ยี่ห้อ / กลุ่ม<input id="product-group-brand" list="product-group-brands" maxlength="100" required></label>
-<datalist id="product-group-brands"></datalist>
-<label>หมวดสินค้า<input id="product-group-category" list="product-group-categories" maxlength="160" required></label>
-<datalist id="product-group-categories"></datalist>
+<label>ยี่ห้อ / กลุ่ม<select id="product-group-brand" required></select></label>
+<label id="product-group-brand-new-label" hidden>ชื่อยี่ห้อ / กลุ่มใหม่<input id="product-group-brand-new" maxlength="100" disabled required></label>
+<label>หมวดสินค้า<select id="product-group-category" required></select></label>
+<label id="product-group-category-new-label" hidden>ชื่อหมวดสินค้าใหม่<input id="product-group-category-new" maxlength="160" disabled required></label>
 <p id="product-group-status" role="status"></p>
 <div class="toolbar">
 <button type="submit" id="product-group-save">บันทึกหมวด</button>

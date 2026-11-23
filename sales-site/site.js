@@ -211,9 +211,19 @@ function renderAudit() {
   const catalogNames = new Set(auditRows.map(row => productKey(row.name)).filter(Boolean));
   const entries = [...auditRows, ...[...fallback].filter(([key]) => key && !catalogNames.has(key) && !/^[–—-]+$/.test(key))
     .map(([, product]) => ({name: product.name, status: 'receipt-only'}))];
+  const brandFilter = $('audit-brand');
+  const selectedBrand = brandFilter.value;
+  const needsBrand = new Set(['', 'ไม่ระบุยี่ห้อ', 'ระบุไม่ได้', 'รอยืนยัน Sigenergy']);
+  const brands = new Set(entries.map(row => effectiveProduct(row.name, fallback, row)?.brand || ''));
+  brandFilter.replaceChildren(new Option('ทั้งหมด', ''), new Option('ยังไม่ระบุ / รอยืนยัน', ':unassigned'),
+    ...[...brands].filter(Boolean).sort().map(brand => new Option(brand)));
+  brandFilter.value = [...brandFilter.options].some(option => option.value === selectedBrand) ? selectedBrand : '';
   const rows = entries.filter(row => {
     const grouping = effectiveProduct(row.name, fallback, row);
-    return (!filter || row.status === filter) &&
+    const brand = grouping?.brand || '';
+    const matchesBrand = brandFilter.value === ':unassigned' ? needsBrand.has(brand)
+      : !brandFilter.value || brandFilter.value === brand;
+    return matchesBrand && (!filter || row.status === filter) &&
       [row.name, row.code, row.category, row.model, row.main, row.group, grouping?.brand, grouping?.category]
         .some(value => String(value ?? '').normalize('NFKC').toLowerCase().includes(query));
   });
@@ -271,24 +281,52 @@ function openGroupEditor(name, receiptId) {
   $('product-group-scope').textContent = receiptId
     ? 'หมวดนี้มีผลกับยอดทั้งใบและมีผลเหนือหมวดตามชื่อสินค้าในใบเสร็จนี้'
     : 'ใช้กับบรรทัดที่มีชื่อสินค้านี้ในรายงาน CRM';
-  const options = [...fallback.values(), ...productGroups.values()];
-  for (const [field, id] of [['brand', 'product-group-brands'], ['category', 'product-group-categories']]) {
-    $(id).replaceChildren(...[...new Set(options.map(product => product[field]).filter(Boolean))].sort()
-      .map(value => new Option(value)));
+  const catalog = (auditRows ?? []).map(row => ({brand:row.crmBrand, category:row.crmCategory}));
+  const options = [...fallback.values(), ...catalog, ...productGroups.values()];
+  for (const field of ['brand', 'category']) {
+    const select = $('product-group-' + field);
+    const choices = new Set(options.map(option => option[field]).filter(Boolean));
+    if (field === 'brand') choices.add('Sigenergy');
+    if (group?.[field]) choices.add(group[field]);
+    select.replaceChildren(new Option('เลือกจากรายการ', ''),
+      ...[...choices].sort((a, b) => a.localeCompare(b, 'th')).map(value => new Option(value)),
+      new Option('กำหนดชื่อใหม่…', newGroupOption));
+    select.value = group?.[field] ?? '';
+    $('product-group-' + field + '-new').value = '';
+    updateGroupInput(field);
   }
   $('product-group-name').textContent = name;
-  $('product-group-brand').value = group?.brand ?? '';
-  $('product-group-category').value = group?.category ?? '';
   $('product-group-status').textContent = '';
   $('product-group-reset').disabled = !productGroups.has(key);
   productEditor.showModal();
 }
 
+const newGroupOption = ':new-group';
+function updateGroupInput(field) {
+  const id = 'product-group-' + field;
+  const isNew = $(id).value === newGroupOption;
+  $(id + '-new-label').hidden = !isNew;
+  $(id + '-new').disabled = !isNew;
+}
+
+function selectedGroupValue(field) {
+  const id = 'product-group-' + field;
+  const select = $(id);
+  if (select.value !== newGroupOption) return select.value;
+  const value = $(id + '-new').value.trim();
+  return [...select.options].find(option => option.value !== newGroupOption &&
+    productKey(option.value) === productKey(value))?.value ?? value;
+}
+
+for (const field of ['brand', 'category']) {
+  $('product-group-' + field).onchange = () => updateGroupInput(field);
+}
+
 async function saveProductGroup(reset) {
   if (savingProduct || !editingProduct) return;
   const epoch = loginEpoch;
-  const payload = {name:editingProduct.name, receiptId:editingProduct.receiptId, brand:$('product-group-brand').value,
-    category:$('product-group-category').value, reset};
+  const payload = {name:editingProduct.name, receiptId:editingProduct.receiptId, brand:selectedGroupValue('brand'),
+    category:selectedGroupValue('category'), reset};
   savingProduct = true;
   for (const id of ['product-group-save', 'product-group-reset', 'product-group-close']) $(id).disabled = true;
   $('product-group-status').textContent = 'กำลังบันทึกหมวดสินค้า…';
@@ -341,7 +379,7 @@ async function loadAudit() {
     }
   }
 }
-$('audit-search').oninput = $('audit-filter').onchange = () => {
+$('audit-search').oninput = $('audit-filter').onchange = $('audit-brand').onchange = () => {
   if (auditRows && !auditBusy) renderAudit();
 };
 $('audit-refresh').onclick = loadAudit;
@@ -395,7 +433,7 @@ function showLogin(message = '') {
   auditBusy = false;
   $('audit-refresh').disabled = false;
   $('audit-rows').replaceChildren();
-  $('audit-search').value = $('audit-filter').value = '';
+  $('audit-search').value = $('audit-filter').value = $('audit-brand').value = '';
   $('title').textContent = 'ยอดขายตามเซลส์';
   selectedReview = 'products';
   views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = reviewPanel.hidden = true;
