@@ -70,7 +70,7 @@ const downloadSalesWorkbook = (() => {
   }
 
   function salesTabs() {
-    const amount = $('amountLabel').textContent;
+    const amount = basisLabel();
     const sellers = [['ชื่อเซลส์', 'ใบเสร็จรับเงิน', 'รายการ', 'ชื่อสินค้า', amount],
       ...aggregate(filtered, row => row[3]).map(item => [
         item.key, item.docs.size, item.lines, item.names.size, item.amount,
@@ -88,7 +88,11 @@ const downloadSalesWorkbook = (() => {
         row[2], row[1], row[3], row[4], row[6], row[7], row[8], row[9], row[10], row[11], row[12],
         statusNames[row[13]] || row[13], row[17],
       ])];
+    const summary = receiptSummary(filtered);
     return [
+      ['สรุปใบเสร็จ', [['ตัวชี้วัด', 'ค่า'],
+        [$('amountLabel').textContent, summary.total ?? 'รอตรวจ'],
+        ['ใบเสร็จรับเงินที่ตรงตัวกรอง', summary.count]], [42, 24]],
       ['ยอดตามเซลส์', sellers, [36, 18, 14, 14, 42]],
       ['ยอดตามสินค้า', products, [48, 26, 34, 24, 18, 42]],
       ['รายการขาย', lines, [15, 22, 32, 40, 55, 24, 32, 12, 16, 24, 26, 22, 48]],

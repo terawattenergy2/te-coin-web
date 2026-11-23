@@ -228,9 +228,10 @@
     const periods = [...byPeriod.keys()].sort().reverse();
     const periodLabel = {week: 'สัปดาห์เริ่มวันที่', month: 'เดือน', year: 'ปี'}[$('dashboardPeriod').value];
     const values = periods.map(key => [key, byPeriod.get(key).reduce((sum, row) => sum + value(row), 0)]);
+    const summary = receiptSummary(filtered);
     const kpis = [
-      [$('amountLabel').textContent, known.reduce((sum, row) => sum + value(row), 0)],
-      ['ใบเสร็จที่ตรงตัวกรอง', new Set(filtered.map(row => row[0])).size],
+      [$('amountLabel').textContent, summary.total],
+      ['ใบเสร็จที่ตรงตัวกรอง', summary.count],
       ['ลูกค้า', new Set(known.map(row => row[4]?.trim()).filter(Boolean)).size],
       ['เซลส์ตามเอกสาร', new Set(filtered.map(row => row[3])).size],
     ];

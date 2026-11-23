@@ -140,6 +140,7 @@ function sourceProducts(item, receipt, quotes) {
 
 export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map()) {
  const rows = [];
+ const receiptTotals = [];
  const catalog = new Map();
  const names = new Set();
  let start = '', end = '', reconciled = 0;
@@ -153,6 +154,10 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   const excluded = doc.isDelete === true || doc.isDelete === 'true' || ['void','awaiting'].includes(status);
   const date = String(doc.publishedOn || doc.documentDate || '').slice(0, 10);
   const seller = String(doc.salesName || '').trim().replace(/\s+/g, ' ') || 'ไม่ระบุเซลส์';
+  if (!excluded) receiptTotals.push([
+   String(doc.documentId), String(doc.documentSerial ?? ''), date, seller,
+   String(doc.contactName || ''), amount(doc.grandTotal), doc.items.length === 0,
+  ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {
    if (!start || date < start) start = date;
@@ -218,5 +223,5 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,
- }, rows, products};
+ }, rows, products, receiptTotals};
 }
