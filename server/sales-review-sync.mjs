@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { buildReviewData, depositPattern, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
+import { buildReviewData, depositPattern, needsReceiptProducts, receiptInvoiceReferences, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
 
 const pageSize = 200;
 
@@ -96,7 +96,15 @@ export async function loadSalesReview(flow, interval) {
   const receipts = await fetchPaidReviewReceipts(flow, interval);
   const shippingReceipts = receipts.filter(receipt => receipt.items.some(item => shippingPattern.test(item.name || '')));
   const invoiceIds = new Set(shippingReceipts.flatMap(shippingInvoiceIds));
+  const cashInvoiceIds = new Set();
+  for (const receipt of receipts.filter(needsReceiptProducts)) {
+    for (const {type, id} of receiptInvoiceReferences(receipt)) {
+      (type === '7' ? invoiceIds : cashInvoiceIds).add(id);
+    }
+  }
   const invoices = await findReportDocuments(flow, 'tax-invoices', invoiceIds,
+    document => String(document.documentId ?? document.recordId));
+  const cashInvoices = await findReportDocuments(flow, 'cash-invoices', cashInvoiceIds,
     document => String(document.documentId ?? document.recordId));
   const numbers = new Set(receipts.flatMap(receipt => receipt.items.filter(item =>
     depositPattern.test(item.name || '') || shippingPattern.test(item.name || ''))
@@ -106,7 +114,7 @@ export async function loadSalesReview(flow, interval) {
   }
   const quotes = await findReportDocuments(flow, 'quotations', numbers,
     document => String(document.documentSerial || '').toUpperCase());
-  return buildReviewData(receipts, new Date(), quotes, invoices);
+  return buildReviewData(receipts, new Date(), quotes, invoices, cashInvoices);
 }
 
 // Bangkok is UTC+07 throughout the year. 20:00 UTC is 03:00 the next day there.

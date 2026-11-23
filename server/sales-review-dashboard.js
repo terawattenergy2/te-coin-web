@@ -253,7 +253,7 @@
       const [receiptId, serial, date] = lines[0];
       const id = String(receiptId);
       const items = lines.filter(row => row[5] !== unallocatedKey).map(row => ({
-        name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10],
+        name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10], source: row[22],
       }));
       const hasName = lines.some(row => row[5] !== unallocatedKey && row[6]?.trim() && !/^[-–—]+$/.test(row[6].trim()));
       return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && !hasName && /^\d{1,20}$/.test(id)};
@@ -346,8 +346,11 @@
     if (filterSummary.isConnected) renderFilterSummary();
     const known = filtered.filter(row => value(row) != null);
     const dated = filtered.filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2]) && Number.isFinite(Date.parse(row[2])));
-    $('dashboardMissing').textContent = known.length !== filtered.length
-      ? `${num(filtered.length - known.length)} รายการรอตรวจยอด` : '';
+    const recovered = receiptSummary(filtered.filter(row => row[22]));
+    $('dashboardMissing').textContent = [
+      known.length !== filtered.length ? `${num(filtered.length - known.length)} รายการรอตรวจยอด` : '',
+      recovered.count ? `ยอดจากสินค้าบนใบกำกับอ้างอิง ${money(recovered.total)} บาท · ${num(recovered.count)} ใบเสร็จ` : '',
+    ].filter(Boolean).join(' · ');
 
     const byPeriod = new Map();
     for (const row of dated) {
