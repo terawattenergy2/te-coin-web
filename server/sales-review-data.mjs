@@ -154,9 +154,11 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   const excluded = doc.isDelete === true || doc.isDelete === 'true' || ['void','awaiting'].includes(status);
   const date = String(doc.publishedOn || doc.documentDate || '').slice(0, 10);
   const seller = String(doc.salesName || '').trim().replace(/\s+/g, ' ') || 'ไม่ระบุเซลส์';
+  const includesVat = String(doc.isVatInclusive).toLowerCase() === 'true';
+  const afterDiscountBeforeVat = includesVat ? base : amount(doc.totalAfterDiscount);
   if (!excluded) receiptTotals.push([
    String(doc.documentId), String(doc.documentSerial ?? ''), date, seller,
-   String(doc.contactName || ''), amount(doc.grandTotal), doc.items.length === 0,
+   String(doc.contactName || ''), amount(doc.grandTotal), doc.items.length === 0, afterDiscountBeforeVat,
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {
