@@ -1,3 +1,5 @@
+import { summarizeQuotePayments } from './quote-payments.mjs';
+
 export const shippingPattern = /ขนส่ง|ค่าจัดส่ง|ค่ารถ|shipping|delivery|freight/i;
 export const depositPattern = /มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า|แบ่งจ่าย|แบ่งชำระ|ชำระส่วนที่เหลือ|ชำระงวด/i;
 
@@ -196,7 +198,7 @@ function sourceProducts(item, receipt, quotes) {
   ? products.filter(line => Number(line.total) > 0).map(line => ({...line, quoteNumber: number})) : [];
 }
 
-export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map(), cashInvoices = new Map()) {
+export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map(), cashInvoices = new Map(), installmentInvoices = []) {
  const rows = [];
  const receiptTotals = [];
  const catalog = new Map();
@@ -224,6 +226,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
     .filter(([type, id]) => ['5', '7', '35'].includes(type) && /^\d+$/.test(id)),
    String(doc.projectName ?? '').trim(),
    [...new Set(String(doc.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? [])],
+   String(doc.contactId ?? ''),
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {
@@ -260,10 +263,11 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    }
    return products.map((product, i) => ({
     item: {...product, quantity: 0, unitName: '', description: item.name + ' · ' + (product.quoteNumber || '') + ' · ' + (item.description || '')},
+    quoteQuantity: shipping ? null : amount(product.quantity), quoteUnit: shipping ? '' : String(product.unitName ?? ''),
     raw: raw[i], net: net[i], charge: shipping ? String(item.name || '').trim() : 'เงินมัดจำ',
    }));
   });
-  for (const {item, raw, net, charge, source} of lines) {
+  for (const {item, raw, net, charge, source, quoteQuantity, quoteUnit} of lines) {
    const original = String(item.name || '');
    const name = original.trim();
    const key = name.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss').replace(/ς/g, 'σ').replace(/\s+/g, ' ');
@@ -277,7 +281,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
     key, name, brand, category, amount(item.quantity) || 0, String(item.unitName || ''), raw,
     net, status, excluded, rawSum, base, String(item.description || ''),
     amount(doc.discountAmount) || 0, amount(doc.documentDeductionAmount) || 0,
-    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim(), charge || '', source || '']);
+    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim(), charge || '', source || '', quoteQuantity ?? null, quoteUnit || '']);
   }
  }
  const products = [...catalog.values()].map(product => ({
@@ -286,10 +290,38 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
  const loaded = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23',
  }).format(now).replace(',', '');
+ const installments = [];
+ const auditedQuotes = new Set();
+ const unresolvedInstallments = [];
+ for (const doc of receipts) {
+  const lines = doc.items.filter(item => depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? '')));
+  if (!lines.length) continue;
+  const direct = lines.flatMap(item => reviewQuoteNumbers(item, doc));
+  const referenceInvoices = receiptInvoiceReferences(doc).map(({type,id}) =>
+   (type === '7' ? invoices : cashInvoices).get(id)).filter(invoice => invoice && sameContact(doc, invoice));
+  const refs = [...new Set([...direct, ...referenceInvoices.flatMap(invoice => reviewQuoteNumbers({}, invoice))])];
+  const quote = refs.length === 1 ? quotes.get(refs[0]) : null;
+  if (!quote || !sameContact(doc, quote) || /void|cancel|draft/i.test(String(quote.statusString ?? ''))) {
+   unresolvedInstallments.push({id:String(doc.documentId), number:doc.documentSerial});
+   continue;
+  }
+  if (auditedQuotes.has(refs[0]) || !productLines(quote).some(item => classify(item.name)[0] === 'Sigenergy')) continue;
+  auditedQuotes.add(refs[0]);
+  const invoiceLinks = new Set((quote.referencedToMe ?? [])
+   .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) && String(link.documentType) === '7')
+   .map(link => String(link.documentId)));
+  const linkedInvoices = installmentInvoices.filter(invoice => sameContact(doc, invoice) &&
+   !/void|cancel|draft/i.test(String(invoice.statusString ?? '')) &&
+   (invoiceLinks.has(String(invoice.documentId ?? invoice.recordId)) ||
+    reviewQuoteNumbers({}, invoice).join() === refs[0]));
+  installments.push({...summarizeQuotePayments(quote, doc, receiptTotals, receiptNetBeforeVat(doc), linkedInvoices),
+   customer: doc.contactName, date: String(quote.publishedOn || quote.documentDate || '').slice(0, 10)});
+ }
+ installments.sort((a,b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
  return {meta: {
   receiptNetVersion: 1, receiptProjectVersion: 1, documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,
- }, rows, products, receiptTotals};
+ }, rows, products, receiptTotals, installments, unresolvedInstallments};
 }

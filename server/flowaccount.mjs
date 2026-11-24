@@ -504,12 +504,15 @@ export async function handler(req,res){
       if (quoteProducts.some(product => classify(product.name)[0] === 'Sigenergy')) {
        items = quoteProducts.map(({name, quantity, unit, total}) => ({name, quantity, unit, quoteAmount:total, source:number}));
        const snapshot = hosted ? await hostedReview.data() : null;
-       const receiptTotals = snapshot ? JSON.parse(snapshot).receiptTotals ?? [] : [];
+       const data = snapshot ? JSON.parse(snapshot) : null;
+       const receiptTotals = data?.receiptTotals ?? [];
+       const auditedInvoiceIds = data?.installments?.find(payment => payment.number === number)?.invoices.map(invoice => invoice.id) ?? [];
        const invoiceIds = new Set((quote.referencedToMe ?? [])
         .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) &&
          String(link.documentType) === '7' && /^\d+$/.test(String(link.documentId)))
         .map(link => String(link.documentId)));
        // The quotation's deposit history in FlowAccount confirms this link.
+       for (const id of auditedInvoiceIds) if (/^\d+$/.test(id)) invoiceIds.add(id);
        if (number === 'QT2026100031') invoiceIds.add('98747912');
        const invoiceResults = await Promise.allSettled([...invoiceIds].map(id => fetchSalesDocument('tax-invoices/' + id, id)));
        const invoices = invoiceResults.flatMap(result => result.status === 'fulfilled' &&

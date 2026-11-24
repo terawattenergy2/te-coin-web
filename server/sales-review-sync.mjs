@@ -49,7 +49,7 @@ export async function fetchPaidReviewReceipts(flow, interval = 300) {
   throw new Error('ดึงใบเสร็จรับเงินไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
 }
 
-async function findReportDocuments(flow, path, keys, keyOf) {
+async function findReportDocuments(flow, path, keys, keyOf, matches) {
   const found = new Map();
   const duplicates = new Set();
   if (!keys.size) return found;
@@ -75,13 +75,13 @@ async function findReportDocuments(flow, path, keys, keyOf) {
     if (count !== first.count) throw Error('เอกสารอ้างอิงเปลี่ยนระหว่างดึงข้อมูล กรุณาลองใหม่');
     for (const document of rows) {
       const key = keyOf(document);
-      if (!keys.has(key)) continue;
+      if (matches ? !matches(document) : !keys.has(key)) continue;
       if (found.has(key)) duplicates.add(key);
       found.set(key, document);
     }
   }
   add(first);
-  for (let page = 2; page <= pages && found.size < keys.size; page += 6) {
+  for (let page = 2; page <= pages && (matches || found.size < keys.size); page += 6) {
     const batch = Array.from({length: Math.min(6, pages - page + 1)}, async (_, offset) => {
       if (offset) await delay(offset * 750);
       return pageAt(page + offset);
@@ -97,7 +97,9 @@ export async function loadSalesReview(flow, interval) {
   const shippingReceipts = receipts.filter(receipt => receipt.items.some(item => shippingPattern.test(item.name || '')));
   const invoiceIds = new Set(shippingReceipts.flatMap(shippingInvoiceIds));
   const cashInvoiceIds = new Set();
-  for (const receipt of receipts.filter(needsReceiptProducts)) {
+  const installmentReceipts = receipts.filter(receipt => receipt.items.some(item =>
+    depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? ''))));
+  for (const receipt of new Set([...receipts.filter(needsReceiptProducts), ...installmentReceipts])) {
     for (const {type, id} of receiptInvoiceReferences(receipt)) {
       (type === '7' ? invoiceIds : cashInvoiceIds).add(id);
     }
@@ -107,14 +109,21 @@ export async function loadSalesReview(flow, interval) {
   const cashInvoices = await findReportDocuments(flow, 'cash-invoices', cashInvoiceIds,
     document => String(document.documentId ?? document.recordId));
   const numbers = new Set(receipts.flatMap(receipt => receipt.items.filter(item =>
-    depositPattern.test(item.name || '') || shippingPattern.test(item.name || ''))
+    depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? '')) || shippingPattern.test(item.name || ''))
     .flatMap(item => reviewQuoteNumbers(item, receipt))));
   for (const invoice of invoices.values()) {
     for (const number of reviewQuoteNumbers({}, invoice)) numbers.add(number);
   }
   const quotes = await findReportDocuments(flow, 'quotations', numbers,
     document => String(document.documentSerial || '').toUpperCase());
-  return buildReviewData(receipts, new Date(), quotes, invoices, cashInvoices);
+  const quoteInvoiceIds = new Set([...quotes.values()].flatMap(quote => (quote.referencedToMe ?? [])
+    .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) && String(link.documentType) === '7')
+    .map(link => String(link.documentId))));
+  const linkedInvoices = await findReportDocuments(flow, 'tax-invoices', numbers,
+    document => String(document.documentId ?? document.recordId),
+    document => quoteInvoiceIds.has(String(document.documentId ?? document.recordId)) ||
+      reviewQuoteNumbers({}, document).some(number => quotes.has(number)));
+  return buildReviewData(receipts, new Date(), quotes, invoices, cashInvoices, [...linkedInvoices.values()]);
 }
 
 // Bangkok is UTC+07 throughout the year. 20:00 UTC is 03:00 the next day there.
