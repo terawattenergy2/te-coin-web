@@ -80,24 +80,54 @@ export function traceSaleDocuments(groups, {strictContact = false} = {}) {
   }
 
   const newReceipts = new Map();
-  for (const receipt of docs.values()) {
-    if (!paid(receipt)) continue;
-    const upstream = walk(receipt.key, parents);
-    const quotes = upstream.filter(doc => doc.type === '3' && !cancelled(doc));
-    if (quotes.length !== 1) continue;
-    const [quote] = quotes;
-    const invoices = [...(parents.get(receipt.key) ?? [])].map(key => docs.get(key))
-      .filter(doc => intermediateTypes.has(doc.type));
-    if (invoices.some(doc => !walk(doc.key, parents).some(parent => parent.key === quote.key))) continue;
-    const net = receiptNetBeforeVat(receipt);
-    if (!Number.isFinite(net)) continue;
+  const splitReceiptIds = new Set();
+  const cents = value => value != null && value !== '' && Number.isFinite(Number(value))
+    ? Math.round(Number(value) * 100) : null;
+  function addPayment(quote, receipt, netCents, invoices) {
     if (!newReceipts.has(quote.id)) newReceipts.set(quote.id, new Map());
     newReceipts.get(quote.id).set(receipt.id, {
       number: receipt.number,
       date: String(receipt.publishedOn ?? receipt.documentDate ?? '').slice(0, 10),
-      invoiceNumbers: upstream.filter(doc => intermediateTypes.has(doc.type)).map(doc => doc.number).filter(Boolean),
-      netCents: Math.sign(net) * Math.round(Math.abs(net) * 100),
+      invoiceNumbers: invoices.map(doc => doc.number).filter(Boolean),
+      netCents,
     });
+  }
+  for (const receipt of docs.values()) {
+    if (!paid(receipt)) continue;
+    const upstream = walk(receipt.key, parents);
+    const quotes = upstream.filter(doc => doc.type === '3' && !cancelled(doc));
+    const invoices = [...(parents.get(receipt.key) ?? [])].map(key => docs.get(key))
+      .filter(doc => intermediateTypes.has(doc.type));
+    const net = cents(receiptNetBeforeVat(receipt));
+    if (net == null) continue;
+    if (quotes.length === 1 && invoices.every(doc => walk(doc.key, parents).some(parent => parent.key === quotes[0].key))) {
+      addPayment(quotes[0], receipt, net, upstream.filter(doc => intermediateTypes.has(doc.type)));
+      continue;
+    }
+    if (!strictContact || String(receipt.isBatchDocument).toLowerCase() !== 'true' || invoices.length < 2 ||
+        invoices.some(invoice => invoice.type !== '7') || receipt.items.length !== invoices.length) continue;
+    const sourceIds = new Set(receipt.items.map(item => String(item.documentId ?? item.referenceId ?? '')));
+    if (sourceIds.size !== invoices.length || invoices.some(invoice => !sourceIds.has(invoice.id))) continue;
+    const parts = invoices.map(invoice => {
+      const owners = walk(invoice.key, parents).filter(doc => doc.type === '3');
+      const gross = cents(invoice.grandTotal);
+      const invoiceNet = gross != null && cents(invoice.vatAmount) != null
+        ? gross - cents(invoice.vatAmount) : cents(invoice.totalWithoutVat);
+      return {invoice, owners, gross, invoiceNet};
+    });
+    if (parts.some(part => part.owners.length !== 1 || !(part.gross > 0) || !(part.invoiceNet > 0)) ||
+        parts.reduce((sum,part) => sum + part.gross,0) !== cents(receipt.grandTotal) ||
+        parts.reduce((sum,part) => sum + part.invoiceNet,0) !== net) continue;
+    const perQuote = new Map();
+    for (const part of parts) {
+      const [quote] = part.owners;
+      if (!perQuote.has(quote.id)) perQuote.set(quote.id, {quote, net:0, invoices:[]});
+      const group = perQuote.get(quote.id);
+      group.net += part.invoiceNet;
+      group.invoices.push(part.invoice);
+    }
+    splitReceiptIds.add(receipt.id);
+    for (const part of perQuote.values()) addPayment(part.quote, receipt, part.net, part.invoices);
   }
 
   function issue(quoteId) {
@@ -117,7 +147,7 @@ export function traceSaleDocuments(groups, {strictContact = false} = {}) {
       id:doc.id, number:doc.number, type:doc.type, status:doc.statusString, paid:paid(doc),
     }));
   }
-  return {newReceipts, issue,
+  return {newReceipts, splitReceiptIds, issue,
     documentsAfterQuote: id => describe(keyOf('3', id), children),
     documentsBeforeReceipt: id => describe(keyOf('9', id), parents),
   };

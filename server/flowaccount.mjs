@@ -505,7 +505,8 @@ export async function handler(req,res){
        items = quoteProducts.map(({name, quantity, unit, total}) => ({name, quantity, unit, quoteAmount:total, source:number}));
        const snapshot = hosted ? await hostedReview.data() : null;
        const data = snapshot ? JSON.parse(snapshot) : null;
-       const receiptTotals = data?.receiptTotals ?? [];
+       const splitIds = new Set(data?.splitInstallmentReceiptIds ?? []);
+       const receiptTotals = (data?.receiptTotals ?? []).filter(row => !splitIds.has(String(row[0])));
        const auditedInvoiceIds = data?.installments?.find(payment => payment.number === number)?.invoices.map(invoice => invoice.id) ?? [];
        const invoiceIds = new Set((quote.referencedToMe ?? [])
         .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) &&
@@ -525,7 +526,7 @@ export async function handler(req,res){
        const auditedPayment = data?.installments?.find(payment => payment.number === number);
        const traced = new Map((auditedPayment?.receipts ?? []).map(item => [item.id,
         {...item, netCents: Math.round(item.net * 100)}]));
-       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt), invoices, traced);
+       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, splitIds.has(id) ? null : receiptNetBeforeVat(receipt), invoices, traced);
       }
      }
     }

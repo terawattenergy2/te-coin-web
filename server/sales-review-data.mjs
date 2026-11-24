@@ -290,6 +290,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
  const loaded = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23',
  }).format(now).replace(',', '');
+ const auditableTotals = trace ? receiptTotals.filter(row => !trace.splitReceiptIds.has(row[0])) : receiptTotals;
  const installments = [];
  const auditedQuotes = new Set();
  const unresolvedInstallments = [];
@@ -320,7 +321,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    (invoiceLinks.has(String(invoice.documentId ?? invoice.recordId)) ||
     reviewQuoteNumbers({}, invoice).join() === refs[0]));
   const quoteId = String(quote.documentId ?? quote.recordId);
-  const payment = summarizeQuotePayments(quote, doc, receiptTotals, receiptNetBeforeVat(doc),
+  const payment = summarizeQuotePayments(quote, doc, auditableTotals, trace?.splitReceiptIds.has(String(doc.documentId)) ? null : receiptNetBeforeVat(doc),
    linkedInvoices, trace?.newReceipts.get(quoteId));
   const downstream = trace?.documentsAfterQuote(quoteId) ?? [];
   const matched = new Set(payment.receipts.map(receipt => receipt.id));
@@ -341,5 +342,5 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,
- }, rows, products, receiptTotals, installments, unresolvedInstallments};
+ }, rows, products, receiptTotals, installments, unresolvedInstallments, splitInstallmentReceiptIds:[...(trace?.splitReceiptIds ?? [])]};
 }
