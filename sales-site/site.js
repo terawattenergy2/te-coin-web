@@ -156,14 +156,24 @@ async function showReceiptProducts(number) {
   if (matches.length !== 1) return;
   const epoch = loginEpoch;
   try {
-    const {items, missing} = await json(await reportRequest('receipt-items', 'GET', matches[0][0]));
+    const {items, missing, quotePayment} = await json(await reportRequest('receipt-items', 'GET', matches[0][0]));
     if (epoch !== loginEpoch || !dialog.open || $('receipt-products-title').textContent !== 'สินค้าในใบเสร็จ ' + number) return;
     status.textContent = items.length ? 'จำนวนสินค้าตามเอกสารที่แสดงในวงเล็บ' : 'ยังไม่พบรายการสินค้าจากเอกสารต้นทาง';
+    if (quotePayment) {
+      const {number, net, paid, remaining, receipts} = quotePayment;
+      const state = remaining == null ? 'รอตรวจยอดใบเสนอราคา'
+        : remaining === 0 ? 'พบใบเสร็จชำระครบตาม QT' : 'รับมัดจำหรือแบ่งชำระ · ยังไม่พบใบเสร็จครบตาม QT';
+      status.textContent = [number, state, ...[
+        ['ยอด QT', net], ['ยอดรับแล้วที่จับคู่ได้', paid], ['ยอดคงเหลือตามเอกสารที่จับคู่ได้', remaining],
+      ].filter(([, value]) => value != null).map(([label, value]) => label + ' ' + projectMoney.format(value) + ' บาท (ไม่รวม VAT)'),
+      'ใบเสร็จที่พบ ' + receipts.map(receipt => receipt.number).join(', ')].join(' · ');
+    }
     if (missing?.length) status.textContent += ' · ยังอ่านรายละเอียดไม่ได้จาก ' + missing.join(', ');
     list.replaceChildren(...items.map(item => {
       const li = document.createElement('li');
       li.textContent = [item.name, item.quantity == null ? 'ไม่ระบุจำนวน' : [item.quantity, item.unit].filter(value => value != null).join(' ')]
-        .join(' · ') + (item.source ? ' (' + item.source + ')' : '');
+        .join(' · ') + (item.quoteAmount != null ? ' · ยอดรายการตาม QT ' + projectMoney.format(item.quoteAmount) + ' บาท' : '') +
+        (item.source ? ' (' + item.source + ')' : '');
       return li;
     }));
   } catch {
@@ -685,8 +695,8 @@ window.addEventListener('message', async event => {
     }
     const epoch = loginEpoch;
     try {
-      const {items, missing} = await json(await reportRequest('receipt-items', 'GET', id));
-      if (epoch === loginEpoch) event.source.postMessage({type:'crm-receipt-items-result', id, items, missing}, '*');
+      const {items, missing, quotePayment} = await json(await reportRequest('receipt-items', 'GET', id));
+      if (epoch === loginEpoch) event.source.postMessage({type:'crm-receipt-items-result', id, items, missing, quotePayment}, '*');
     } catch {
       if (epoch === loginEpoch) event.source.postMessage({type:'crm-receipt-items-result', id, error:true}, '*');
     }

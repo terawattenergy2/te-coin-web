@@ -1,10 +1,10 @@
 export const shippingPattern = /ขนส่ง|ค่าจัดส่ง|ค่ารถ|shipping|delivery|freight/i;
-export const depositPattern = /มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า/i;
+export const depositPattern = /มัดจำ|deposit|ชำระล่วงหน้า|เงินล่วงหน้า|แบ่งจ่าย|แบ่งชำระ|ชำระส่วนที่เหลือ|ชำระงวด/i;
 
 export function reviewQuoteNumbers(item, receipt) {
  const pattern = /\bQT[0-9][A-Z0-9-]{3,25}\b/gi;
- const numbers = String(item.description || '').match(pattern) ||
-  String(receipt.reference || '').match(pattern) || [];
+ const numbers = [item.description, receipt.reference, receipt.remarks, receipt.internalNotes]
+  .flatMap(value => String(value ?? '').match(pattern) ?? []);
  return [...new Set(numbers.map(value => value.toUpperCase()))];
 }
 

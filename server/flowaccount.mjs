@@ -1,6 +1,7 @@
 import {createSellerGroupStore, parseSellerGroup} from './seller-groups.mjs';
 import {createProductGroupStore, parseProductGroup} from './product-groups.mjs';
-import {classify} from './sales-review-data.mjs';
+import {classify, depositPattern, receiptNetBeforeVat, reviewQuoteNumbers} from './sales-review-data.mjs';
+import {summarizeQuotePayments} from './quote-payments.mjs';
 import {loadSaleSuccess} from './sale-success.mjs';
 import {buildModelSegments, modelKey} from './sales-product-classifier.mjs';
 import http from 'node:http';
@@ -485,7 +486,31 @@ export async function handler(req,res){
     if (!['7', '35'].includes(type) || !/^\d{1,20}$/.test(refId)) continue;
     sources.set(type + ':' + refId, {type, refId, number:ref.documentSerial ?? ref.referenceDocumentSerial});
    }
-   const items = toItems(direct, receipt.documentSerial);
+   let items = toItems(direct, receipt.documentSerial);
+   let quotePayment;
+   const installmentLines = (receipt.items ?? []).filter(item => depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? '')));
+   if (installmentLines.length) {
+    const numbers = [...new Set(installmentLines.flatMap(item => reviewQuoteNumbers(item, receipt)))];
+    if (numbers.length === 1) {
+     const [number] = numbers;
+     const query = new URLSearchParams({searchString:number, currentPage:'1', pageSize:'20'});
+     const result = await flow('quotations?' + query);
+     const matches = documents(result).filter(document => String(document.documentSerial).toUpperCase() === number &&
+      receipt.contactId != null && String(document.contactId) === String(receipt.contactId) &&
+      !/void|cancel|draft/i.test(String(document.statusString ?? '')));
+     if (matches.length === 1) {
+      const quote = matches[0];
+      const quoteProducts = documentItems(quote);
+      if (quoteProducts.some(product => classify(product.name)[0] === 'Sigenergy')) {
+       items = quoteProducts.map(({name, quantity, unit, total}) => ({name, quantity, unit, quoteAmount:total, source:number}));
+       const snapshot = hosted ? await hostedReview.data() : null;
+       const receiptTotals = snapshot ? JSON.parse(snapshot).receiptTotals ?? [] : [];
+       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt));
+      }
+     }
+    }
+   }
+   if (quotePayment) return reply(200, {items, quotePayment, missing:[]});
    const missing = [];
    const seen = new Set();
    const addInvoice = (invoice, number) => {

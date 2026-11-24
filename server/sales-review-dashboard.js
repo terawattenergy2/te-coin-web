@@ -223,8 +223,8 @@
   }
 
   function renderReceiptItems(items) {
-    return `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit, source}) =>
-      `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}${source ? ` <small>(${E(source)})</small>` : ''}</li>`
+    return `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit, source, quoteAmount}) =>
+      `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}${quoteAmount == null ? '' : ' · ยอดรายการตาม QT ' + E(money(quoteAmount)) + ' บาท'}${source ? ` <small>(${E(source)})</small>` : ''}</li>`
     ).join('')}</ul>`;
   }
 
@@ -232,7 +232,8 @@
     if (!result) return 'กำลังค้นหารายการจาก FlowAccount…';
     if (result.error) return 'ดึงรายละเอียดจาก FlowAccount ไม่สำเร็จ ลองเปิดกราฟอีกครั้ง';
     const items = result.items?.length ? renderReceiptItems(result.items) : 'ไม่พบชื่อสินค้าในข้อมูลจาก FlowAccount';
-    return items + (result.missing?.length ? `<small>ยังไม่ได้รายละเอียดจาก ${E(result.missing.join(', '))}</small>` : '');
+    const payment = result.quotePayment ? '<p>' + E(quotePaymentText(result.quotePayment)) + '</p>' : '';
+    return payment + items + (result.missing?.length ? `<small>ยังไม่ได้รายละเอียดจาก ${E(result.missing.join(', '))}</small>` : '');
   }
 
   window.addEventListener('message', event => {
@@ -256,7 +257,7 @@
         name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10], source: row[22],
       }));
       const hasName = lines.some(row => row[5] !== unallocatedKey && row[6]?.trim() && !/^[-–—]+$/.test(row[6].trim()));
-      return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && !hasName && /^\d{1,20}$/.test(id)};
+      return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && (!hasName || lines.some(row => /มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด|ชำระส่วนที่เหลือ/i.test(row[21] || row[6]))) && /^\d{1,20}$/.test(id)};
     }).sort((a, b) => b.date.localeCompare(a.date) || b.serial.localeCompare(a.serial));
     const heading = key === otherCategory ? 'หมวดอื่น ๆ' : key;
     const context = chart === 'categories' ? ` · ${selectedCategoryPeriod}` : '';
