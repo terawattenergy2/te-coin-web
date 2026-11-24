@@ -160,13 +160,25 @@ async function showReceiptProducts(number) {
     if (epoch !== loginEpoch || !dialog.open || $('receipt-products-title').textContent !== 'สินค้าในใบเสร็จ ' + number) return;
     status.textContent = items.length ? 'จำนวนสินค้าตามเอกสารที่แสดงในวงเล็บ' : 'ยังไม่พบรายการสินค้าจากเอกสารต้นทาง';
     if (quotePayment) {
-      const {number, net, paid, remaining, receipts} = quotePayment;
+      const {number, net, paid, remaining, receipts, invoices = [], depositPercent} = quotePayment;
+      const outstanding = invoices.some(invoice => invoice.awaiting);
       const state = remaining == null ? 'รอตรวจยอดใบเสนอราคา'
-        : remaining === 0 ? 'พบใบเสร็จชำระครบตาม QT' : 'รับมัดจำหรือแบ่งชำระ · ยังไม่พบใบเสร็จครบตาม QT';
-      status.textContent = [number, state, ...[
+        : remaining === 0 ? 'ชำระครบ' : outstanding ? 'รอเก็บเงิน'
+        : 'ยังไม่พบใบเสร็จครบตาม QT';
+      status.textContent = [number, ...(depositPercent ? ['รับมัดจำ ' + depositPercent + '% แล้ว'] : []),
+        remaining > 0 && net > 0 ? 'งวดคงเหลือ ' + projectMoney.format(100 * remaining / net).replace(/\.00$/, '') + '% ' + state : state, ...[
         ['ยอด QT', net], ['ยอดรับแล้วที่จับคู่ได้', paid], ['ยอดคงเหลือตามเอกสารที่จับคู่ได้', remaining],
       ].filter(([, value]) => value != null).map(([label, value]) => label + ' ' + projectMoney.format(value) + ' บาท (ไม่รวม VAT)'),
       'ใบเสร็จที่พบ ' + receipts.map(receipt => receipt.number).join(', ')].join(' · ');
+      for (const invoice of invoices) {
+        if (!/^\d{1,20}$/.test(invoice.id)) continue;
+        const link = document.createElement('a');
+        link.href = 'https://advance.flowaccount.com/N355072/business/invoices/' + invoice.id;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = invoice.number;
+        status.append(' · ', link);
+      }
     }
     if (missing?.length) status.textContent += ' · ยังอ่านรายละเอียดไม่ได้จาก ' + missing.join(', ');
     list.replaceChildren(...items.map(item => {

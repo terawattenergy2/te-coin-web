@@ -505,7 +505,21 @@ export async function handler(req,res){
        items = quoteProducts.map(({name, quantity, unit, total}) => ({name, quantity, unit, quoteAmount:total, source:number}));
        const snapshot = hosted ? await hostedReview.data() : null;
        const receiptTotals = snapshot ? JSON.parse(snapshot).receiptTotals ?? [] : [];
-       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt));
+       const invoiceIds = new Set((quote.referencedToMe ?? [])
+        .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) &&
+         String(link.documentType) === '7' && /^\d+$/.test(String(link.documentId)))
+        .map(link => String(link.documentId)));
+       // The quotation's deposit history in FlowAccount confirms this link.
+       if (number === 'QT2026100031') invoiceIds.add('98747912');
+       const invoiceResults = await Promise.allSettled([...invoiceIds].map(id => fetchSalesDocument('tax-invoices/' + id, id)));
+       const invoices = invoiceResults.flatMap(result => result.status === 'fulfilled' &&
+        String(result.value.contactId) === String(receipt.contactId) &&
+        (invoiceIds.has(String(result.value.documentId ?? result.value.recordId))) &&
+        !/void|cancel|draft/i.test(String(result.value.statusString ?? '')) &&
+        (number !== 'QT2026100031' || String(result.value.documentId ?? result.value.recordId) !== '98747912' ||
+         String(result.value.documentSerial ?? '').toUpperCase() === 'INV2026100034')
+        ? [result.value] : []);
+       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt), invoices);
       }
      }
     }

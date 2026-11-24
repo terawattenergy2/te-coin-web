@@ -218,10 +218,12 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    [...new Set([...reviewQuoteNumbers({}, doc), ...doc.items.flatMap(item => reviewQuoteNumbers(item, doc))])],
    (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
     .filter(link => String(link.referenceDocumentType) === '3').map(link => String(link.referenceId || '')),
-   (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
-    .filter(link => ['5', '7', '35'].includes(String(link.referenceDocumentType)) && /^\d+$/.test(String(link.referenceId)))
-    .map(link => [String(link.referenceDocumentType), String(link.referenceId), String(link.referenceDocumentSerial ?? '')]),
+   [...(doc.referencedByMe ?? []), ...(doc.documentReference ?? []), ...doc.items]
+    .map(link => [String(link.referenceDocumentType ?? link.documentType ?? (link.documentId ? 7 : '')),
+     String(link.referenceId ?? link.documentId ?? ''), String(link.referenceDocumentSerial ?? link.documentSerial ?? '')])
+    .filter(([type, id]) => ['5', '7', '35'].includes(type) && /^\d+$/.test(id)),
    String(doc.projectName ?? '').trim(),
+   [...new Set(String(doc.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? [])],
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {

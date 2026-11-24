@@ -78,10 +78,14 @@ options('brand',R.map(x=>x[7]));options('category',R.map(x=>x[8]));options('sell
 const productMap = new Map(P.map(product => [product.key, product]));
 function quotePaymentText(payment) {
  if (!payment) return '';
+ const outstanding = payment.invoices?.some(invoice => invoice.awaiting);
  const status = payment.remaining == null ? 'รอตรวจยอดใบเสนอราคา'
-   : payment.remaining === 0 ? 'พบใบเสร็จชำระครบตาม QT' : 'รับมัดจำหรือแบ่งชำระ · ยังไม่พบใบเสร็จครบตาม QT';
- return [payment.number,status,'ยอด QT '+money(payment.net)+' บาท',
-   'รับแล้วที่จับคู่ได้ '+money(payment.paid)+' บาท','คงเหลือตามเอกสารที่จับคู่ได้ '+money(payment.remaining)+' บาท',
+   : payment.remaining === 0 ? 'ชำระครบ' : outstanding ? 'รอเก็บเงิน' : 'ยังไม่พบใบเสร็จครบตาม QT';
+ const installment = payment.remaining > 0 && payment.net > 0
+   ? 'งวดคงเหลือ '+Number((100 * payment.remaining / payment.net).toFixed(2))+'% '+status : status;
+ return [payment.number, ...(payment.depositPercent ? ['รับมัดจำ '+payment.depositPercent+'% แล้ว'] : []),
+   installment, 'ยอด QT '+money(payment.net)+' บาท',
+   'รับแล้วที่จับคู่ได้ '+money(payment.paid)+' บาท','ยอดคงเหลือ '+money(payment.remaining)+' บาท',
    'ยอดไม่รวม VAT','ใบเสร็จที่พบ '+payment.receipts.map(receipt=>receipt.number).join(', ')].join(' · ');
 }
 window.addEventListener('message', event => {
@@ -92,7 +96,11 @@ window.addEventListener('message', event => {
  list.innerHTML = items.length ? '<p>รายการจากเอกสารต้นทาง</p><ul>' + items.map(item =>
    '<li>'+E(item.name)+' · '+E(item.quantity ?? 'ไม่ระบุจำนวน')+' '+E(item.unit || '')+(item.quoteAmount!=null?' · ยอดรายการตาม QT '+E(money(item.quoteAmount))+' บาท':'')+' ('+E(item.source || '')+')</li>').join('')+'</ul>'
    : '<p>'+ (result.error ? 'อ่านรายละเอียดจาก FlowAccount ไม่สำเร็จ' : 'ยังไม่พบรายการสินค้าจากเอกสารต้นทาง')+'</p>';
- if (result.quotePayment) list.insertAdjacentHTML('afterbegin','<p>'+E(quotePaymentText(result.quotePayment))+'</p>');
+ if (result.quotePayment) {
+   const links = (result.quotePayment.invoices ?? []).filter(invoice => /^\d{1,20}$/.test(invoice.id))
+    .map(invoice=>'<a href="https://advance.flowaccount.com/N355072/business/invoices/'+invoice.id+'" target="_blank" rel="noopener noreferrer">'+E(invoice.number)+'</a>');
+   list.insertAdjacentHTML('afterbegin','<p>'+[E(quotePaymentText(result.quotePayment)), ...links].join(' · ')+'</p>');
+ }
  if (result.missing?.length) list.insertAdjacentHTML('beforeend','<p>ยังอ่านรายละเอียดไม่ได้จาก '+E(result.missing.join(', '))+'</p>');
 });
 function receiptSummary(rows) {
