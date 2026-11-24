@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { buildReviewData, depositPattern, needsReceiptProducts, receiptInvoiceReferences, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
+import { buildReviewData, depositPattern, receiptInvoiceReferences, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
 
 import { traceSaleDocuments } from './sale-document-trace.mjs';
 
@@ -111,7 +111,7 @@ export async function loadSalesReview(flow, interval) {
     item.name && (!Number.isFinite(Number(item.quantity)) || Number(item.quantity) === 0)));
   const invoiceSerials = new Set(quantityReceipts.flatMap(receipt =>
     String(receipt.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? []));
-  for (const receipt of new Set([...receipts.filter(needsReceiptProducts), ...installmentReceipts, ...quantityReceipts])) {
+  for (const receipt of receipts) {
     for (const {type, id} of receiptInvoiceReferences(receipt)) {
       (type === '7' ? invoiceIds : cashInvoiceIds).add(id);
     }

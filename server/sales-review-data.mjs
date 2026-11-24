@@ -201,6 +201,7 @@ function sourceProducts(item, receipt, quotes) {
 export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map(), cashInvoices = new Map(), installmentInvoices = [], trace) {
  const rows = [];
  const receiptTotals = [];
+ const sourceQuantities = [];
  const catalog = new Map();
  const byInvoiceNumber = new Map([...invoices.values(), ...cashInvoices.values()].map(invoice =>
   [String(invoice.documentSerial ?? '').toUpperCase(), invoice]));
@@ -274,6 +275,40 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    .map(number => byInvoiceNumber.get(number));
   const quantityInvoices = new Set([...invoiceRefs, ...namedInvoiceRefs].filter(invoice =>
    invoice && sameContact(doc, invoice) && !/void|cancel|draft/i.test(String(invoice.statusString ?? ''))));
+  // Compare against the original document items, independently of revenue allocation.
+  const isBatch = String(doc.isBatchDocument).toLowerCase() === 'true' ||
+   /^REC/i.test(String(doc.documentSerial ?? '')) || invoiceRefs.length > 1 && needsReceiptProducts(doc);
+  const depositItems = doc.items.filter(item => depositPattern.test(String(item.name ?? '')));
+  const depositQuotes = new Set(depositItems.flatMap(item => reviewQuoteNumbers(item, doc)));
+  const quote = depositQuotes.size === 1 ? quotes.get([...depositQuotes][0]) : null;
+  const rawItems = items => items.filter(item => hasProductName(item) &&
+   !depositPattern.test(String(item.name ?? '')) && !shippingPattern.test(String(item.name ?? '')));
+  let expected = rawItems(doc.items);
+  let documents = [doc.documentSerial];
+  let reason = '';
+  if (isBatch || !expected.length && !depositItems.length && quantityInvoices.size) {
+   documents = [...quantityInvoices].map(invoice => invoice.documentSerial);
+   expected = [...quantityInvoices].flatMap(invoice => rawItems(invoice.items ?? []));
+   if (!documents.length || [...invoiceRefs, ...namedInvoiceRefs].some(invoice => !quantityInvoices.has(invoice)) ||
+       [...quantityInvoices].some(invoice => !rawItems(invoice.items ?? []).length))
+    reason = 'อ่านรายการสินค้าใน INV อ้างอิงได้ไม่ครบ';
+  } else if (depositItems.length) {
+   if (quote && sameContact(doc, quote) && !/void|cancel|draft/i.test(String(quote.statusString ?? ''))) {
+    documents.push(quote.documentSerial);
+    expected = [...expected, ...rawItems(quote.items ?? [])];
+   } else reason = 'ยังยืนยัน QT ที่อ้างอิงไม่ได้';
+  }
+  if (!reason && !expected.length) reason = 'เอกสารไม่มีบรรทัดสินค้าสำหรับเทียบ';
+  if (!reason && expected.some(item => amount(item.quantity) == null))
+   reason = 'ต้นทางมีบรรทัดที่ quantity ไม่สมบูรณ์';
+  const byUnit = new Map();
+  for (const item of expected) {
+   const units = amount(item.quantity);
+   if (units == null || units === 0) continue;
+   const unit = String(item.unitName ?? '').trim() || 'ไม่ระบุหน่วย';
+   byUnit.set(unit, (byUnit.get(unit) ?? 0) + units);
+  }
+  sourceQuantities.push([String(doc.documentId),doc.documentSerial,isBatch,documents,[...byUnit],reason]);
   for (const {item, raw, net, charge, source, quoteQuantity, quoteUnit} of lines) {
    let referenceQuantity;
    let referenceUnit = '';
@@ -364,5 +399,5 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,
- }, rows, products, receiptTotals, installments, unresolvedInstallments, splitInstallmentReceiptIds:[...(trace?.splitReceiptIds ?? [])]};
+ }, rows, products, receiptTotals, sourceQuantities, installments, unresolvedInstallments, splitInstallmentReceiptIds:[...(trace?.splitReceiptIds ?? [])]};
 }

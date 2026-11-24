@@ -147,6 +147,30 @@ function receiptQuantityText(receipt) {
  const text = breakdown.length === 1 ? breakdown[0] : num(receipt.quantity)+' หน่วย ('+breakdown.join(' + ')+')';
  return text + (receipt.incomplete ? ' (ข้อมูลบางรายการ)' : '');
 }
+if (DATA.sourceQuantities) {
+ const results = DATA.sourceQuantities.map(([id,number,batch,sources,expected,reason]) => {
+  const actual = quantityByReceipt.get(id);
+  const expectedMap = new Map(expected);
+  const units = new Set([...expectedMap.keys(), ...(actual?.units.keys() ?? [])]);
+  const differences = [...units].map(unit => [unit, (actual?.units.get(unit) ?? 0) - (expectedMap.get(unit) ?? 0)])
+   .filter(([,difference]) => Math.abs(difference) > 0.0000001);
+  return {number,batch,sources,expected,actual,differences,reason};
+ });
+ const label = pairs => [...pairs].map(([unit,n])=>num(n)+' '+unit).join(' + ') || '—';
+ const mismatches = results.filter(row=>!row.reason && row.differences.length);
+ const incomplete = results.filter(row=>row.reason);
+ const compared = results.filter(row=>!row.reason);
+ const summary = 'เทียบ '+results.length+' ใบ · ตรง '+(compared.length-mismatches.length)+' ใบ · ต่าง '+mismatches.length+
+  ' ใบ · ยังสรุปไม่ได้ '+incomplete.length+' ใบ · ใบเสร็จรวม '+results.filter(row=>row.batch).length+
+  ' ใบ (ต่าง '+mismatches.filter(row=>row.batch).length+' ใบ · ยังสรุปไม่ได้ '+incomplete.filter(row=>row.batch).length+' ใบ)';
+ const details = [...mismatches,...incomplete].map(row=>'<tr><td>'+E(row.number)+'</td><td>'+E(row.sources.join(', '))+
+  '</td><td>'+E(receiptQuantityText(row.actual))+'</td><td>'+E(label(row.expected))+
+  '</td><td>'+E(row.reason || label(row.differences))+'</td></tr>').join('');
+ $('installmentAudit').insertAdjacentHTML('afterend','<details class="card"><summary>เทียบจำนวนทั้งใบกับ FlowAccount</summary>'+
+  '<p>'+E(summary)+'</p><div class="scroll"><table><thead><tr><th>ใบเสร็จ</th><th>เอกสารต้นทาง</th><th>จำนวน CRM</th>'+
+  '<th>จำนวนจากต้นทางที่อ่านได้</th><th>ส่วนต่าง CRM ลบต้นทาง / สาเหตุ</th></tr></thead><tbody>'+details+
+  '</tbody></table></div></details>');
+}
 const quantityCounts = {quote:0, documented:0, missing:0, fees:0};
 for (const row of R) {
  if (row[14] || row[5] === unallocatedKey) continue;
