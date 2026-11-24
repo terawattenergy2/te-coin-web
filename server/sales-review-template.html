@@ -95,7 +95,11 @@ if (DATA.installments) {
  if (DATA.unresolvedInstallments?.length) audit.insertAdjacentHTML('beforeend',
   '<details><summary>ใบมัดจำหรือแบ่งจ่ายที่ยังยืนยัน QT ไม่ได้ ('+DATA.unresolvedInstallments.length+' ใบ)</summary><p>'+
   DATA.unresolvedInstallments.map(receipt=>[documentLink('receipts',receipt.id,receipt.number), E(receipt.issue),
-   ...(receipt.documents ?? []).map(auditDocumentLink)].filter(Boolean).join(' · ')).join('<br>')+'</p></details>');
+   ...(receipt.documents ?? []).map(auditDocumentLink)].filter(Boolean).join(' · ')).join('<br>')+'</p>'+
+  (DATA.unresolvedInstallments.some(receipt => receipt.id === '29699637') ?
+   '<p>ผลตรวจ RE2026040452 · QT2026040728 เป็นงาน PV + Mounting มีมัดจำ 56,359.11 บาท และงวดที่เหลือ 223,129.52 บาทเก็บเงินแล้ว (ไม่รวม VAT) · '+
+   [documentLink('billing-notes','25671820','BL2026040262'),documentLink('invoices','88177708','INV2026040593'),
+    documentLink('receipts','29807882','RE2026050127')].join(' · ')+'</p>' : '')+'</details>');
 } else audit.textContent = 'รายงานงวดชำระจะแสดงหลังอัปเดตข้อมูลจาก FlowAccount';
 function displayQuantity(row) {
  if (row[21] === 'เงินมัดจำ') return row[23] == null ? 'ดูจำนวนตาม QT' : E(num(row[23])+' '+row[24])+' <small>(ตาม QT)</small>';
