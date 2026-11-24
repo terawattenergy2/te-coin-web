@@ -101,10 +101,36 @@ if (DATA.installments) {
    [documentLink('billing-notes','25671820','BL2026040262'),documentLink('invoices','88177708','INV2026040593'),
     documentLink('receipts','29807882','RE2026050127')].join(' · ')+'</p>' : '')+'</details>');
 } else audit.textContent = 'รายงานงวดชำระจะแสดงหลังอัปเดตข้อมูลจาก FlowAccount';
-function displayQuantity(row) {
- if (row[21] === 'เงินมัดจำ') return row[23] == null ? 'ดูจำนวนตาม QT' : E(num(row[23])+' '+row[24])+' <small>(ตาม QT)</small>';
- return E(num(row[9])+' '+row[10]);
+function knownQuantity(value) {
+ return (typeof value === 'number' || (typeof value === 'string' && value.trim())) &&
+  Number.isFinite(Number(value)) && Number(value) !== 0;
 }
+function rowQuantity(row) {
+ const quote = String(row[17] ?? '').match(/\bQT[0-9]+\b/i)?.[0]?.toUpperCase();
+ const allocated = row[21] === 'เงินมัดจำ' || (quote && /มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด/i.test(row[17]));
+ if (allocated) return {quantity:knownQuantity(row[23]) ? Number(row[23]) : null, unit:row[24] || '', source:quote || 'QT'};
+ if (row[21]) return {quantity:null, unit:'', source:''};
+ return {quantity:knownQuantity(row[9]) ? Number(row[9]) : knownQuantity(row[23]) ? Number(row[23]) : null,
+  unit:row[10] || row[24] || '', source:row[22] || ''};
+}
+function quantityText({quantity, unit, source}) {
+ if (quantity == null) return 'ไม่พบจำนวนในเอกสาร';
+ return num(quantity) + (unit ? ' '+unit : '') + (source ? ' (ตาม '+source+')' : '');
+}
+function displayQuantity(row) {
+ return E(quantityText(rowQuantity(row)));
+}
+const quantityCounts = {quote:0, documented:0, missing:0, fees:0};
+for (const row of R) {
+ if (row[14] || row[5] === unallocatedKey) continue;
+ const {quantity, source} = rowQuantity(row);
+ if (quantity != null) quantityCounts[source.startsWith('QT') ? 'quote' : 'documented']++;
+ else quantityCounts[row[21] && row[21] !== 'เงินมัดจำ' ? 'fees' : 'missing']++;
+}
+$('installmentAudit').insertAdjacentHTML('beforeend',
+ '<p id="quantityAudit" class="muted">ตรวจจำนวนทั้งรายงาน · ใบเสร็จหรือใบกำกับ '+num(quantityCounts.documented)+
+ ' บรรทัด · ตาม QT '+num(quantityCounts.quote)+' บรรทัด · ยังไม่พบจำนวน '+num(quantityCounts.missing)+
+ ' บรรทัด · ค่าบริการที่ไม่มีจำนวนสินค้า '+num(quantityCounts.fees)+' บรรทัด</p>');
 const productMap = new Map(P.map(product => [product.key, product]));
 function quotePaymentText(payment) {
  if (!payment) return '';
@@ -124,14 +150,19 @@ window.addEventListener('message', event => {
  if (event.source !== parent || result?.type !== 'crm-receipt-items-result' || list?.dataset.receiptId !== result.id) return;
  const items = result.items ?? [];
  list.innerHTML = items.length ? '<p>รายการจากเอกสารต้นทาง</p><ul>' + items.map(item =>
-   '<li>'+E(item.name)+' · '+E(item.quantity ?? 'ไม่ระบุจำนวน')+' '+E(item.unit || '')+(item.quoteAmount!=null?' · ยอดรายการตาม QT '+E(money(item.quoteAmount))+' บาท':'')+' ('+E(item.source || '')+')</li>').join('')+'</ul>'
+   '<li>'+E(item.name)+' · '+E((knownQuantity(item.quantity) ? item.quantity : 'ไม่พบจำนวนในเอกสาร'))+' '+E(item.unit || '')+(item.quoteAmount!=null?' · ยอดรายการตาม QT '+E(money(item.quoteAmount))+' บาท':'')+' ('+E(item.source || '')+')</li>').join('')+'</ul>'
    : '<p>'+ (result.error ? 'อ่านรายละเอียดจาก FlowAccount ไม่สำเร็จ' : 'ยังไม่พบรายการสินค้าจากเอกสารต้นทาง')+'</p>';
- if (result.quotePayment) {
-   for (const cell of $('detailBody').querySelectorAll('[data-quote-product]')) {
-     const products = items.filter(item => item.name === cell.dataset.quoteProduct);
-     if (products.length === 1 && products[0].quantity != null)
-       cell.textContent = num(products[0].quantity)+' '+products[0].unit+' (ตาม QT)';
+ for (const cell of $('detailBody').querySelectorAll('[data-quantity-product]')) {
+   const name = value => String(value ?? '').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+   const products = items.filter(item => name(item.name) === name(cell.dataset.quantityProduct) &&
+    knownQuantity(item.quantity) &&
+    (cell.dataset.quantitySource ? item.source === cell.dataset.quantitySource : item.source?.startsWith('INV')));
+   if (products.length === 1) {
+     const {quantity, unit, source} = products[0];
+     cell.textContent = quantityText({quantity:Number(quantity), unit, source});
    }
+ }
+ if (result.quotePayment) {
    const links = (result.quotePayment.invoices ?? []).filter(invoice => /^\d{1,20}$/.test(invoice.id))
     .map(invoice=>'<a href="https://advance.flowaccount.com/N355072/business/invoices/'+invoice.id+'" target="_blank" rel="noopener noreferrer">'+E(invoice.number)+'</a>');
    list.insertAdjacentHTML('afterbegin','<p>'+[E(quotePaymentText(result.quotePayment)), ...links].join(' · ')+'</p>');
@@ -150,6 +181,6 @@ function draw(){const pages=Math.max(1,Math.ceil(viewRows.length/size));page=Mat
 $('body').innerHTML=pageItems.map((a,index)=>{if(tab==='sellers')return `<tr><td class="name">${E(a.key)}</td><td class="num">${num(a.docs.size)}</td><td class="num">${num(a.lines)} / ${num(a.names.size)}</td><td class="num">${money(a.amount)}</td><td><button class="link" data-seller="${index}">ดูทุกรายการ</button></td></tr>`;if(tab==='products'){const p=productMap.get(a.key);return `<tr><td class="name">${E(p.name)}<div class="muted">${E(p.reason)}</div></td><td>${E([...a.categories].join(" / "))}<br><span class="badge">${E([...a.brands].join(" / "))}</span></td><td class="num">${[...a.units].map(([u,v])=>num(v)+' '+E(u)).join('<br>')}</td><td class="num">${num(a.docs.size)}</td><td class="num">${money(a.amount)}</td><td><button class="link" data-product="${index}">ดูชื่อเดิม / รายการ</button></td></tr>`;}return `<tr><td>${E(a[2])}<br><button class="link" data-doc="${index}">${E(a[1])}</button></td><td class="name">${E(a[3])}<div class="muted">${E(a[4])}</div></td><td class="name">${E(a[6])}<div class="muted">${E(a[8])}</div></td><td class="num">${displayQuantity(a)}</td><td class="num">${money(a[11])}</td><td class="num">${money(a[12])}</td><td><span class="badge ${a[14]?'warn':''}">${E(statusNames[a[13]]||a[13])}</span>${a[18]||a[19]?'<div class="muted">มีปรับท้ายบิล</div>':''}</td></tr>`;}).join('')||'<tr><td colspan="7">ไม่พบรายการที่ตรงตัวกรอง ลองเปลี่ยนหมวดหรือกดล้างตัวกรองทั้งหมด</td></tr>';$('page').textContent=`หน้า ${page} / ${pages} · หน้าละ ${size} รายการ`;$('prev').disabled=page<=1;$('next').disabled=page>=pages;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('sig').classList.toggle('primary',$('brand').value==='Sigenergy');}
 function setTab(t){tab=t;page=1;update();}document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 for(const id of ['brand','category','seller','year','month','product'])$(id).onchange=()=>{page=1;update();};$('search').oninput=()=>{page=1;update();};$('prev').onclick=()=>{page--;draw();};$('next').onclick=()=>{page++;draw();};$('sig').onclick=()=>{$('brand').value='Sigenergy';$('category').value='';$('product').value='';page=1;update();};$('all').onclick=()=>{$('brand').value='';$('category').value='';$('product').value='';page=1;update();};$('reset').onclick=()=>{for(const id of ['brand','category','seller','year','month','product','search'])$(id).value='';page=1;update();};
-$('body').onclick=event=>{const b=event.target.closest('button');if(!b)return;if(b.dataset.seller!==undefined){$('seller').value=pageItems[Number(b.dataset.seller)].key;setTab('lines');}else if(b.dataset.product!==undefined){const p=productMap.get(pageItems[Number(b.dataset.product)].key);$('detailTitle').textContent=p.name;$('detailBody').innerHTML='<p>ชื่อเดิมที่พบในเอกสาร</p><ul>'+p.variants.map(n=>'<li class="wrap">'+E(n)+'</li>').join('')+'</ul><p>รหัสต้นทางที่ต่างกัน '+p.ids.length+' รหัส — ไม่ใช้รหัสเป็นเงื่อนไขรวมรุ่น</p><button id="filterProduct" class="primary">ดูรายการขายสินค้านี้</button>';$('filterProduct').onclick=()=>{$('product').value=p.name;$('detail').close();setTab('lines');};$('detail').showModal();}else if(b.dataset.doc!==undefined){const a=pageItems[Number(b.dataset.doc)],rows=R.filter(r=>r[0]===a[0]);const pricedRows=rows.filter(r=>r[5]!==unallocatedKey&&r[11]!=null),itemsTotal=pricedRows.length?pricedRows.reduce((sum,r)=>sum+cents(r[11]),0)/100:null;$('detailTitle').textContent=a[1];$('detailBody').innerHTML='<p>'+E(a[2])+' · '+E(a[3])+'<br>'+E(a[4])+'</p><p><strong>ยอดสุทธิทั้งใบ (ไม่รวม VAT) '+money(a[16])+' บาท</strong><br>ยอดเฉพาะรายการที่เลือก (ไม่รวม VAT) '+money(a[12])+' บาท<br>ผลรวมยอดตามรายการที่มีข้อมูล '+money(itemsTotal)+' บาท<br>ส่วนลดท้ายบิล '+money(a[18])+' บาท • ยอดหักตาม documentDeductionAmount '+money(a[19])+' บาท</p>'+(parent!==window?'<p><button id="receiptSourceProducts">ดูสินค้าจากเอกสารต้นทาง</button></p>':'')+'<div class="scroll"><table><thead><tr><th>สินค้าทั้งบิล</th><th>จำนวน</th><th>ยอดตามรายการ</th><th>ก่อน VAT ที่ปันส่วน</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r[6])+(r[17]?'<div class="muted">'+E(r[17])+'</div>':'')+'</td><td class="num"'+(r[21]==='เงินมัดจำ'?' data-quote-product="'+E(r[6])+'"':'')+'>'+displayQuantity(r)+'</td><td class="num">'+money(r[11])+'</td><td class="num">'+money(r[12])+'</td></tr>').join('')+'</tbody></table></div>';if($('receiptSourceProducts'))$('receiptSourceProducts').onclick=()=>parent.postMessage({type:'crm-open-receipt-products',number:a[1]},'*');if(parent!==window&&/^\d{1,20}$/.test(a[0])&&(rows.some(r=>/มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด|ชำระส่วนที่เหลือ/i.test(r[21]||r[6]))||!rows.some(r=>r[5]!==unallocatedKey&&r[6]?.trim()&&!/^[-–—]+$/.test(r[6].trim())))){const items=document.createElement('div');items.id='receiptReferenceItems';items.dataset.receiptId=String(a[0]);items.textContent='กำลังอ่านสินค้าในเอกสารอ้างอิง…';$('detailBody').prepend(items);parent.postMessage({type:'crm-receipt-items-request',id:String(a[0])},'*');}$('detail').showModal();}};
+$('body').onclick=event=>{const b=event.target.closest('button');if(!b)return;if(b.dataset.seller!==undefined){$('seller').value=pageItems[Number(b.dataset.seller)].key;setTab('lines');}else if(b.dataset.product!==undefined){const p=productMap.get(pageItems[Number(b.dataset.product)].key);$('detailTitle').textContent=p.name;$('detailBody').innerHTML='<p>ชื่อเดิมที่พบในเอกสาร</p><ul>'+p.variants.map(n=>'<li class="wrap">'+E(n)+'</li>').join('')+'</ul><p>รหัสต้นทางที่ต่างกัน '+p.ids.length+' รหัส — ไม่ใช้รหัสเป็นเงื่อนไขรวมรุ่น</p><button id="filterProduct" class="primary">ดูรายการขายสินค้านี้</button>';$('filterProduct').onclick=()=>{$('product').value=p.name;$('detail').close();setTab('lines');};$('detail').showModal();}else if(b.dataset.doc!==undefined){const a=pageItems[Number(b.dataset.doc)],rows=R.filter(r=>r[0]===a[0]);const pricedRows=rows.filter(r=>r[5]!==unallocatedKey&&r[11]!=null),itemsTotal=pricedRows.length?pricedRows.reduce((sum,r)=>sum+cents(r[11]),0)/100:null;$('detailTitle').textContent=a[1];$('detailBody').innerHTML='<p>'+E(a[2])+' · '+E(a[3])+'<br>'+E(a[4])+'</p><p><strong>ยอดสุทธิทั้งใบ (ไม่รวม VAT) '+money(a[16])+' บาท</strong><br>ยอดเฉพาะรายการที่เลือก (ไม่รวม VAT) '+money(a[12])+' บาท<br>ผลรวมยอดตามรายการที่มีข้อมูล '+money(itemsTotal)+' บาท<br>ส่วนลดท้ายบิล '+money(a[18])+' บาท • ยอดหักตาม documentDeductionAmount '+money(a[19])+' บาท</p>'+(parent!==window?'<p><button id="receiptSourceProducts">ดูสินค้าจากเอกสารต้นทาง</button></p>':'')+'<div class="scroll"><table><thead><tr><th>สินค้าทั้งบิล</th><th>จำนวน</th><th>ยอดตามรายการ</th><th>ก่อน VAT ที่ปันส่วน</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+E(r[6])+(r[17]?'<div class="muted">'+E(r[17])+'</div>':'')+'</td><td class="num"'+(rowQuantity(r).quantity==null||rowQuantity(r).source?.startsWith('QT')?' data-quantity-product="'+E(r[6])+'" data-quantity-source="'+E(rowQuantity(r).source)+'"':'')+'>'+displayQuantity(r)+'</td><td class="num">'+money(r[11])+'</td><td class="num">'+money(r[12])+'</td></tr>').join('')+'</tbody></table></div>';if($('receiptSourceProducts'))$('receiptSourceProducts').onclick=()=>parent.postMessage({type:'crm-open-receipt-products',number:a[1]},'*');if(parent!==window&&/^\d{1,20}$/.test(a[0])&&(rows.some(r=>/มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด|ชำระส่วนที่เหลือ/i.test(r[21]||r[6]))||rows.some(r=>r[5]!==unallocatedKey&&rowQuantity(r).quantity==null)||!rows.some(r=>r[5]!==unallocatedKey&&r[6]?.trim()&&!/^[-–—]+$/.test(r[6].trim())))){const items=document.createElement('div');items.id='receiptReferenceItems';items.dataset.receiptId=String(a[0]);items.textContent='กำลังอ่านสินค้าในเอกสารอ้างอิง…';$('detailBody').prepend(items);parent.postMessage({type:'crm-receipt-items-request',id:String(a[0])},'*');}$('detail').showModal();}};
 $('close').onclick=()=>$('detail').close();update();
 </script></body></html>

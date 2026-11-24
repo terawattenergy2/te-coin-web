@@ -224,7 +224,7 @@
 
   function renderReceiptItems(items) {
     return `<ul class="dashboard-receipt-items">${items.map(({name, quantity, unit, source, quoteAmount}) =>
-      `<li>${E(name)} · ${quantity == null ? 'ไม่ระบุจำนวน' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}${quoteAmount == null ? '' : ' · ยอดรายการตาม QT ' + E(money(quoteAmount)) + ' บาท'}${source ? ` <small>(${E(source)})</small>` : ''}</li>`
+      `<li>${E(name)} · ${!knownQuantity(quantity) ? 'ไม่พบจำนวนในเอกสาร' : E(num(quantity)) + (unit ? ' ' + E(unit) : '')}${quoteAmount == null ? '' : ' · ยอดรายการตาม QT ' + E(money(quoteAmount)) + ' บาท'}${source ? ` <small>(${E(source)})</small>` : ''}</li>`
     ).join('')}</ul>`;
   }
 
@@ -254,10 +254,10 @@
       const [receiptId, serial, date] = lines[0];
       const id = String(receiptId);
       const items = lines.filter(row => row[5] !== unallocatedKey).map(row => ({
-        name: row[6] || 'ไม่ระบุชื่อสินค้า', quantity: row[9], unit: row[10], source: row[22],
+        name: row[6] || 'ไม่ระบุชื่อสินค้า', ...rowQuantity(row),
       }));
       const hasName = lines.some(row => row[5] !== unallocatedKey && row[6]?.trim() && !/^[-–—]+$/.test(row[6].trim()));
-      return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && (!hasName || lines.some(row => /มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด|ชำระส่วนที่เหลือ/i.test(row[21] || row[6]))) && /^\d{1,20}$/.test(id)};
+      return {id, serial, date, net: receiptSummary(lines).total, items, lookup:parent !== window && (!hasName || lines.some(row => row[5] !== unallocatedKey && rowQuantity(row).quantity == null) || lines.some(row => /มัดจำ|แบ่งจ่าย|แบ่งชำระ|ชำระงวด|ชำระส่วนที่เหลือ/i.test(row[21] || row[6]))) && /^\d{1,20}$/.test(id)};
     }).sort((a, b) => b.date.localeCompare(a.date) || b.serial.localeCompare(a.serial));
     const heading = key === otherCategory ? 'หมวดอื่น ๆ' : key;
     const context = chart === 'categories' ? ` · ${selectedCategoryPeriod}` : '';

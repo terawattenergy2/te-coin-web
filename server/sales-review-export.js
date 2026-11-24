@@ -83,11 +83,12 @@ const downloadSalesWorkbook = (() => {
           item.docs.size, item.amount];
       })];
     const lines = [['วันที่', 'เลขใบเสร็จรับเงิน', 'เซลส์', 'ลูกค้า', 'สินค้า', 'ยี่ห้อ', 'หมวด',
-      'จำนวน', 'หน่วย', 'ยอดตามรายการ', 'ยอดสุทธิที่ปันส่วน (ไม่รวม VAT)', 'สถานะ', 'รายละเอียด'],
-      ...[...filtered].sort((a, b) => b[2].localeCompare(a[2]) || b[1].localeCompare(a[1])).map(row => [
-        row[2], row[1], row[3], row[4], row[6], row[7], row[8], row[9], row[10], row[11], row[12],
-        statusNames[row[13]] || row[13], row[17],
-      ])];
+      'จำนวนตามเอกสาร', 'หน่วย', 'เอกสารที่มาของจำนวน', 'ยอดตามรายการ', 'ยอดสุทธิที่ปันส่วน (ไม่รวม VAT)', 'สถานะ', 'รายละเอียด'],
+      ...[...filtered].sort((a, b) => b[2].localeCompare(a[2]) || b[1].localeCompare(a[1])).map(row => {
+        const {quantity, unit, source} = rowQuantity(row);
+        return [row[2], row[1], row[3], row[4], row[6], row[7], row[8], quantity, unit, source || row[1],
+          row[11], row[12], statusNames[row[13]] || row[13], row[17]];
+      })];
     const summary = receiptSummary(filtered);
     return [
       ['สรุปใบเสร็จ', [['ตัวชี้วัด', 'ค่า'],
@@ -95,7 +96,7 @@ const downloadSalesWorkbook = (() => {
         ['ใบเสร็จรับเงินที่ตรงตัวกรอง', summary.count]], [42, 24]],
       ['ยอดตามเซลส์', sellers, [36, 18, 14, 14, 42]],
       ['ยอดตามสินค้า', products, [48, 26, 34, 24, 18, 42]],
-      ['รายการขาย', lines, [15, 22, 32, 40, 55, 24, 32, 12, 16, 24, 26, 22, 48]],
+      ['รายการขาย', lines, [15, 22, 32, 40, 55, 24, 32, 12, 16, 24, 24, 26, 22, 48]],
     ];
   }
 

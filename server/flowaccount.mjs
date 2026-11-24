@@ -551,7 +551,7 @@ export async function handler(req,res){
      missing.push(number || refId);
     }
    }
-   if (!direct.length) {
+   if (!direct.length || direct.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) === 0)) {
     const references = [receipt.reference, ...[...(receipt.items || []), ...(receipt.documentReference || []), ...(receipt.referencedByMe || [])]
       .flatMap(ref => [ref.documentSerial, ref.referenceDocumentSerial])];
     const numbers = new Set(references.flatMap(value => String(value ?? '').toUpperCase().match(/\bINV[0-9][A-Z0-9-]{3,25}\b/g) || []));

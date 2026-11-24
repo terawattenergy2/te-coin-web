@@ -183,7 +183,7 @@ async function showReceiptProducts(number) {
     if (missing?.length) status.textContent += ' · ยังอ่านรายละเอียดไม่ได้จาก ' + missing.join(', ');
     list.replaceChildren(...items.map(item => {
       const li = document.createElement('li');
-      li.textContent = [item.name, item.quantity == null ? 'ไม่ระบุจำนวน' : [item.quantity, item.unit].filter(value => value != null).join(' ')]
+      li.textContent = [item.name, !Number.isFinite(Number(item.quantity)) || Number(item.quantity) === 0 ? 'ไม่พบจำนวนในเอกสาร' : [item.quantity, item.unit].filter(value => value != null).join(' ')]
         .join(' · ') + (item.quoteAmount != null ? ' · ยอดรายการตาม QT ' + projectMoney.format(item.quoteAmount) + ' บาท' : '') +
         (item.source ? ' (' + item.source + ')' : '');
       return li;

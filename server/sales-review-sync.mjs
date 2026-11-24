@@ -107,7 +107,11 @@ export async function loadSalesReview(flow, interval) {
   const shippingReceipts = receipts.filter(receipt => receipt.items.some(item => shippingPattern.test(item.name || '')));
   const invoiceIds = new Set(shippingReceipts.flatMap(shippingInvoiceIds));
   const cashInvoiceIds = new Set();
-  for (const receipt of new Set([...receipts.filter(needsReceiptProducts), ...installmentReceipts])) {
+  const quantityReceipts = receipts.filter(receipt => receipt.items.some(item =>
+    item.name && (!Number.isFinite(Number(item.quantity)) || Number(item.quantity) === 0)));
+  const invoiceSerials = new Set(quantityReceipts.flatMap(receipt =>
+    String(receipt.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? []));
+  for (const receipt of new Set([...receipts.filter(needsReceiptProducts), ...installmentReceipts, ...quantityReceipts])) {
     for (const {type, id} of receiptInvoiceReferences(receipt)) {
       (type === '7' ? invoiceIds : cashInvoiceIds).add(id);
     }
@@ -115,8 +119,8 @@ export async function loadSalesReview(flow, interval) {
   const contacts = new Set(installmentReceipts.map(receipt => String(receipt.contactId ?? '')).filter(Boolean));
   const inAudit = document => contacts.has(String(document.contactId ?? ''));
   const idOf = document => String(document.documentId ?? document.recordId);
-  const invoices = await findReportDocuments(flow, 'tax-invoices', new Set([...invoiceIds, ...contacts]), idOf,
-    document => inAudit(document) || invoiceIds.has(idOf(document)));
+  const invoices = await findReportDocuments(flow, 'tax-invoices', new Set([...invoiceIds, ...contacts, ...invoiceSerials]), idOf,
+    document => inAudit(document) || invoiceIds.has(idOf(document)) || invoiceSerials.has(String(document.documentSerial ?? '').toUpperCase()));
   const cashInvoices = await findReportDocuments(flow, 'cash-invoices', new Set([...cashInvoiceIds, ...contacts]), idOf,
     document => inAudit(document) || cashInvoiceIds.has(idOf(document)));
   const billing = await findReportDocuments(flow, 'billing-notes', contacts, idOf, inAudit);

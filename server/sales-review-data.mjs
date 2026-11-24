@@ -202,6 +202,8 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
  const rows = [];
  const receiptTotals = [];
  const catalog = new Map();
+ const byInvoiceNumber = new Map([...invoices.values(), ...cashInvoices.values()].map(invoice =>
+  [String(invoice.documentSerial ?? '').toUpperCase(), invoice]));
  const names = new Set();
  let start = '', end = '', reconciled = 0;
  let depositsAllocated = 0, depositsUnresolved = 0, allocatedDepositCents = 0, shippingAllocated = 0, allocatedShippingCents = 0, shippingUnresolved = 0;
@@ -267,7 +269,27 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
     raw: raw[i], net: net[i], charge: shipping ? String(item.name || '').trim() : 'เงินมัดจำ',
    }));
   });
+  const invoiceRefs = receiptInvoiceReferences(doc).map(({type,id}) => (type === '7' ? invoices : cashInvoices).get(id));
+  const namedInvoiceRefs = (String(doc.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? [])
+   .map(number => byInvoiceNumber.get(number));
+  const quantityInvoices = new Set([...invoiceRefs, ...namedInvoiceRefs].filter(invoice =>
+   invoice && sameContact(doc, invoice) && !/void|cancel|draft/i.test(String(invoice.statusString ?? ''))));
   for (const {item, raw, net, charge, source, quoteQuantity, quoteUnit} of lines) {
+   let referenceQuantity;
+   let referenceUnit = '';
+   let quantitySource = source || '';
+   if (!charge && !amount(item.quantity) && hasProductName(item) &&
+       lines.filter(entry => normalizeName(entry.item.name) === normalizeName(item.name)).length === 1) {
+    const matchingLines = [...quantityInvoices].flatMap(invoice => (invoice.items ?? [])
+     .filter(line => normalizeName(line.name) === normalizeName(item.name))
+     .map(line => ({line, serial:invoice.documentSerial})));
+    if (matchingLines.length === 1 && amount(matchingLines[0].line.quantity)) {
+     const [{line, serial}] = matchingLines;
+     referenceQuantity = amount(line.quantity);
+     referenceUnit = String(line.unitName ?? '');
+     quantitySource = serial;
+    }
+   }
    const original = String(item.name || '');
    const name = original.trim();
    const key = name.normalize('NFKC').toLowerCase().replace(/ß/g, 'ss').replace(/ς/g, 'σ').replace(/\s+/g, ' ');
@@ -281,7 +303,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
     key, name, brand, category, amount(item.quantity) || 0, String(item.unitName || ''), raw,
     net, status, excluded, rawSum, base, String(item.description || ''),
     amount(doc.discountAmount) || 0, amount(doc.documentDeductionAmount) || 0,
-    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim(), charge || '', source || '', quoteQuantity ?? null, quoteUnit || '']);
+    String(doc.company?.companyName || doc.company?.companyNameEn || '').trim(), charge || '', quantitySource, quoteQuantity ?? referenceQuantity ?? null, quoteUnit || referenceUnit]);
   }
  }
  const products = [...catalog.values()].map(product => ({
