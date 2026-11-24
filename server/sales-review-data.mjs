@@ -282,11 +282,11 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   const depositQuotes = new Set(depositItems.flatMap(item => reviewQuoteNumbers(item, doc)));
   const quote = depositQuotes.size === 1 ? quotes.get([...depositQuotes][0]) : null;
   const rawItems = items => items.filter(item => hasProductName(item) &&
-   !depositPattern.test(String(item.name ?? '')) && !shippingPattern.test(String(item.name ?? '')));
+   !depositPattern.test(String(item.name ?? '')));
   let expected = rawItems(doc.items);
   let documents = [doc.documentSerial];
   let reason = '';
-  if (isBatch || !expected.length && !depositItems.length && quantityInvoices.size) {
+  if (isBatch || !expected.length && !depositItems.length && invoiceRefs.length) {
    documents = [...quantityInvoices].map(invoice => invoice.documentSerial);
    expected = [...quantityInvoices].flatMap(invoice => rawItems(invoice.items ?? []));
    if (!documents.length || [...invoiceRefs, ...namedInvoiceRefs].some(invoice => !quantityInvoices.has(invoice)) ||
