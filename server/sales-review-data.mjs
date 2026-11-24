@@ -221,6 +221,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    (Array.isArray(doc.referencedByMe) ? doc.referencedByMe : [])
     .filter(link => ['5', '7', '35'].includes(String(link.referenceDocumentType)) && /^\d+$/.test(String(link.referenceId)))
     .map(link => [String(link.referenceDocumentType), String(link.referenceId), String(link.referenceDocumentSerial ?? '')]),
+   String(doc.projectName ?? '').trim(),
   ]);
   if (allocated[0] != null) reconciled++;
   if (date && doc.items.length) {
@@ -284,7 +285,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23',
  }).format(now).replace(',', '');
  return {meta: {
-  receiptNetVersion: 1, documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
+  receiptNetVersion: 1, receiptProjectVersion: 1, documents: receipts.length, rows: rows.length, rawNames: names.size, products: products.length,
   start: start || '—', end: end || '—', loaded: loaded + ' (เวลาไทย)', loadedAt: now.toISOString(),
   reconciled, unknownFinancialDocs: receipts.length - reconciled,
   depositsAllocated, depositsUnresolved, allocatedDepositCents, shippingAllocated, allocatedShippingCents, shippingUnresolved,

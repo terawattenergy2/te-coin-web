@@ -14,6 +14,7 @@
 <h1 id="title">ยอดขายตามเซลส์</h1>
 <nav id="views" aria-label="เมนู CRM" hidden>
 <button type="button" data-view="sales" aria-pressed="true">ยอดขายตามเซลส์</button>
+<button type="button" data-view="projects" aria-pressed="false">ยอดตามโปรเจกต์</button>
 <button type="button" data-view="dashboard" aria-pressed="false">แดชบอร์ด</button>
 <button type="button" data-view="success" aria-pressed="false">Sale Success</button>
 <button type="button" data-view="review" aria-pressed="false">ตรวจสอบข้อมูล</button>
@@ -42,6 +43,19 @@
 <div class="toolbar"><button id="refresh">ดึงข้อมูลล่าสุด</button><span>อัปเดตอัตโนมัติทุกวันช่วง 03:00–03:59 น. เวลาไทย</span></div>
 <div id="report-loading" class="loading-slot" hidden></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
+<section id="projects" hidden aria-label="ยอดตามโปรเจกต์">
+<p>ยอดท้ายใบเสร็จที่เก็บเงินแล้ว ไม่รวม VAT ตามชื่อโปรเจกต์ใน FlowAccount</p>
+<div class="toolbar success-toolbar">
+<label>โปรเจกต์<select id="project-name"></select></label>
+<label>ตั้งแต่วันที่<input type="date" id="project-from"></label>
+<label>ถึงวันที่<input type="date" id="project-to"></label>
+<button type="button" id="project-export">ส่งออก CSV</button>
+</div>
+<p id="project-summary" role="status"></p>
+<div class="success-table" tabindex="0" aria-label="ใบเสร็จตามโปรเจกต์">
+<table><thead><tr><th scope="col">เลขที่ใบเสร็จ</th><th scope="col">วันที่</th><th scope="col">โปรเจกต์</th><th scope="col">ยอดท้ายใบเสร็จ (ไม่รวม VAT)</th></tr></thead><tbody id="project-rows"></tbody></table>
+</div>
+</section>
 </section>
 <section id="success" hidden aria-label="Sale Success">
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>

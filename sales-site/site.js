@@ -140,6 +140,68 @@ const labels = new Map([
 ]);
 for (const [value, label] of labels) $('audit-filter').add(new Option(label, value));
 
+const projectMoney = new Intl.NumberFormat('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+let projectRows = [];
+
+function renderProjects() {
+  const dataset = rawReport?.dataset;
+  const projectsReady = dataset?.meta.receiptProjectVersion === 1;
+  const receipts = projectsReady ? dataset.receiptTotals : [];
+  const select = $('project-name');
+  const current = select.value;
+  const projects = [...new Set(receipts.map(receipt => receipt[11]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  select.replaceChildren(new Option('ทุกโปรเจกต์', ''), ...projects.map(name => new Option(name)));
+  if (projects.includes(current)) select.value = current;
+  const from = $('project-from').value;
+  const to = $('project-to').value;
+  const invalidDates = from && to && from > to;
+  projectRows = invalidDates ? [] : receipts.filter(receipt =>
+    (!select.value || receipt[11] === select.value) && (!from || receipt[2] >= from) && (!to || receipt[2] <= to))
+    .sort((a, b) => b[2].localeCompare(a[2]) || b[1].localeCompare(a[1]));
+  const total = projectRows.reduce((sum, receipt) => sum + Math.round((receipt[7] ?? 0) * 100), 0);
+  const missing = projectRows.filter(receipt => receipt[7] == null).length;
+  $('project-summary').textContent = !projectsReady ? 'กรุณากดดึงข้อมูลล่าสุดเพื่อโหลดชื่อโปรเจกต์'
+    : invalidDates ? 'วันที่เริ่มต้นต้องอยู่ก่อนหรือเท่ากับวันที่สิ้นสุด'
+    : `${projectRows.length.toLocaleString('th-TH')} ใบเสร็จ · รวม ${projectMoney.format(total / 100)} บาท (ไม่รวม VAT)${missing ? ` · รอตรวจยอด ${missing} ใบ` : ''}`;
+  $('project-export').disabled = !projectRows.length;
+  const table = document.createDocumentFragment();
+  for (const receipt of projectRows) {
+    const [id, number, date] = receipt;
+    const row = document.createElement('tr');
+    const cell = row.insertCell();
+    if (/^\d{1,20}$/.test(id)) {
+      const link = document.createElement('a');
+      link.href = 'https://advance.flowaccount.com/N355072/business/receipts/' + id;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = number;
+      cell.append(link);
+    } else cell.textContent = number;
+    for (const value of [date, receipt[11] || 'ไม่ระบุ', receipt[7] == null ? 'รอตรวจ' : projectMoney.format(receipt[7])]) {
+      row.insertCell().textContent = value;
+    }
+    table.append(row);
+  }
+  $('project-rows').replaceChildren(table);
+}
+
+for (const id of ['project-name', 'project-from', 'project-to']) $(id).onchange = renderProjects;
+$('project-export').onclick = () => {
+  const csv = value => {
+    const text = String(value ?? '');
+    return '"' + (/^[=+@\t\r-]/.test(text) && typeof value === 'string' ? "'" : '') + text.replaceAll('"', '""') + '"';
+  };
+  const rows = [['เลขที่ใบเสร็จ', 'วันที่', 'โปรเจกต์', 'ยอดท้ายใบเสร็จ (ไม่รวม VAT)'],
+    ...projectRows.map(receipt => [receipt[1], receipt[2], receipt[11], receipt[7]])];
+  const url = URL.createObjectURL(new Blob(['\ufeff', rows.map(row => row.map(csv).join(',')).join('\r\n')],
+    {type:'text/csv;charset=utf-8'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'crm-project-receipts.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 function showView(view) {
   selectedView = view;
   frame.classList.toggle('dashboard-frame', view === 'dashboard');
@@ -149,14 +211,18 @@ function showView(view) {
   }
   const reviewing = view === 'review';
   const measuring = view === 'success';
+  const projects = view === 'projects';
   $('title').textContent = views.querySelector('[aria-pressed="true"]').textContent;
   $('report').hidden = reviewing || measuring;
+  frame.hidden = projects;
+  $('projects').hidden = !projects;
+  if (projects) renderProjects();
   success.hidden = !measuring;
   reviewPanel.hidden = !reviewing;
   if (reviewing) showReview(selectedReview);
   if (view === 'dashboard' && !auditRows) loadAudit();
   if (measuring) saleSuccess.open();
-  if (!reviewing && !measuring) showReportView();
+  if (!reviewing && !measuring && !projects) showReportView();
 }
 
 function showReview(view) {
@@ -438,6 +504,9 @@ function showLogin(message = '') {
   selectedReview = 'products';
   views.hidden = audit.hidden = success.hidden = sellerGroupsPanel.hidden = reviewPanel.hidden = true;
   rawReport = quotePending = undefined;
+  for (const id of ['project-name', 'project-from', 'project-to']) $(id).value = '';
+  $('projects').hidden = true;
+  renderProjects();
   productGroups.clear();
   productGroupVersion++;
   editingProduct = undefined;
