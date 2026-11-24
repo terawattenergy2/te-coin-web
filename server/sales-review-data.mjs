@@ -198,7 +198,7 @@ function sourceProducts(item, receipt, quotes) {
   ? products.filter(line => Number(line.total) > 0).map(line => ({...line, quoteNumber: number})) : [];
 }
 
-export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map(), cashInvoices = new Map(), installmentInvoices = []) {
+export function buildReviewData(receipts, now = new Date(), quotes = new Map(), invoices = new Map(), cashInvoices = new Map(), installmentInvoices = [], trace) {
  const rows = [];
  const receiptTotals = [];
  const catalog = new Map();
@@ -299,10 +299,15 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   const direct = lines.flatMap(item => reviewQuoteNumbers(item, doc));
   const referenceInvoices = receiptInvoiceReferences(doc).map(({type,id}) =>
    (type === '7' ? invoices : cashInvoices).get(id)).filter(invoice => invoice && sameContact(doc, invoice));
-  const refs = [...new Set([...direct, ...referenceInvoices.flatMap(invoice => reviewQuoteNumbers({}, invoice))])];
+  const upstream = trace?.documentsBeforeReceipt(String(doc.documentId)) ?? [];
+  const refs = [...new Set([...direct, ...referenceInvoices.flatMap(invoice => reviewQuoteNumbers({}, invoice)),
+   ...upstream.filter(document => document.type === '3').map(document => document.number)])];
   const quote = refs.length === 1 ? quotes.get(refs[0]) : null;
   if (!quote || !sameContact(doc, quote) || /void|cancel|draft/i.test(String(quote.statusString ?? ''))) {
-   unresolvedInstallments.push({id:String(doc.documentId), number:doc.documentSerial});
+   const issue = !refs.length ? 'ใบเสร็จยังไม่มีเส้นทางอ้างอิงถึง QT'
+    : refs.length > 1 ? 'อ้างถึง QT หลายใบ: ' + refs.join(', ')
+    : 'ยังยืนยัน QT ' + refs[0] + ' สำหรับลูกค้ารายนี้ไม่ได้';
+   unresolvedInstallments.push({id:String(doc.documentId), number:doc.documentSerial, issue, documents:upstream});
    continue;
   }
   if (auditedQuotes.has(refs[0]) || !productLines(quote).some(item => classify(item.name)[0] === 'Sigenergy')) continue;
@@ -314,7 +319,20 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    !/void|cancel|draft/i.test(String(invoice.statusString ?? '')) &&
    (invoiceLinks.has(String(invoice.documentId ?? invoice.recordId)) ||
     reviewQuoteNumbers({}, invoice).join() === refs[0]));
-  installments.push({...summarizeQuotePayments(quote, doc, receiptTotals, receiptNetBeforeVat(doc), linkedInvoices),
+  const quoteId = String(quote.documentId ?? quote.recordId);
+  const payment = summarizeQuotePayments(quote, doc, receiptTotals, receiptNetBeforeVat(doc),
+   linkedInvoices, trace?.newReceipts.get(quoteId));
+  const downstream = trace?.documentsAfterQuote(quoteId) ?? [];
+  const matched = new Set(payment.receipts.map(receipt => receipt.id));
+  const pending = downstream.filter(document => document.type === '9' && !matched.has(document.id));
+  const intermediates = downstream.filter(document => ['5', '7', '35'].includes(document.type));
+  const issue = payment.remaining === 0 ? 'ชำระครบ'
+   : pending.some(document => document.paid) ? 'พบใบเสร็จเก็บเงินแล้วที่ยังแยกยอดให้ QT นี้ไม่ได้'
+   : pending.length ? 'พบใบเสร็จอ้างอิงที่ยังไม่มีสถานะเก็บเงินแล้ว'
+   : payment.invoices.some(invoice => invoice.awaiting) ? 'รอเก็บเงิน'
+   : intermediates.length || payment.invoices.length ? 'พบเอกสารเรียกเก็บ แต่ยังไม่พบใบเสร็จสำหรับยอดคงเหลือ'
+   : 'ยังไม่พบเอกสารเรียกเก็บงวดถัดไป';
+  installments.push({...payment, issue, documents:[...intermediates, ...pending],
    customer: doc.contactName, date: String(quote.publishedOn || quote.documentDate || '').slice(0, 10)});
  }
  installments.sort((a,b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));

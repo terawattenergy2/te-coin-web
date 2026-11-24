@@ -13,7 +13,7 @@ const paid = doc => doc.type === '9' && !cancelled(doc) &&
   String(doc.status) === '5' && String(doc.statusString).toLowerCase() === 'paid';
 const keyOf = (type, id) => type + ':' + id;
 
-export function traceSaleDocuments(groups) {
+export function traceSaleDocuments(groups, {strictContact = false} = {}) {
   const docs = new Map();
   const byNumber = new Map();
   const parents = new Map();
@@ -33,6 +33,11 @@ export function traceSaleDocuments(groups) {
   function link(from, to) {
     if (from === to || !docs.has(from) || !docs.has(to)) return;
     if (cancelled(docs.get(from))) return;
+    if (strictContact) {
+      const left = docs.get(from);
+      const right = docs.get(to);
+      if (left.contactId == null || right.contactId == null || String(left.contactId) !== String(right.contactId)) return;
+    }
     if (!parents.has(to)) parents.set(to, new Set());
     if (!children.has(from)) children.set(from, new Set());
     parents.get(to).add(from);
@@ -46,8 +51,8 @@ export function traceSaleDocuments(groups) {
       if (from === doc.key || to === doc.key) link(from, to);
     }
     for (const item of [...(doc.items ?? []), ...(doc.documentReference ?? [])]) {
-      const itemKey = keyOf(item.documentType, item.documentId);
-      const source = docs.get(itemKey) ?? docs.get(byNumber.get(String(item.documentSerial ?? '').toUpperCase()));
+      const itemKey = keyOf(item.documentType ?? item.referenceDocumentType, item.documentId ?? item.referenceId);
+      const source = docs.get(itemKey) ?? docs.get(byNumber.get(String(item.documentSerial ?? item.referenceDocumentSerial ?? '').toUpperCase()));
       if (source && source.type !== '9') link(source.key, doc.key);
     }
     const serials = String(doc.reference ?? '').toUpperCase().match(/\b(?:QT|INV|BL|CAI|RI)[A-Z0-9-]{5,25}\b/g) ?? [];
@@ -89,6 +94,7 @@ export function traceSaleDocuments(groups) {
     if (!newReceipts.has(quote.id)) newReceipts.set(quote.id, new Map());
     newReceipts.get(quote.id).set(receipt.id, {
       number: receipt.number,
+      date: String(receipt.publishedOn ?? receipt.documentDate ?? '').slice(0, 10),
       invoiceNumbers: upstream.filter(doc => intermediateTypes.has(doc.type)).map(doc => doc.number).filter(Boolean),
       netCents: Math.sign(net) * Math.round(Math.abs(net) * 100),
     });
@@ -106,5 +112,13 @@ export function traceSaleDocuments(groups) {
     return 'ยังไม่พบใบแจ้งหนี้หรือใบเสร็จที่อ้างถึงใบเสนอราคานี้';
   }
 
-  return {newReceipts, issue};
+  function describe(key, edges) {
+    return walk(key, edges).map(doc => ({
+      id:doc.id, number:doc.number, type:doc.type, status:doc.statusString, paid:paid(doc),
+    }));
+  }
+  return {newReceipts, issue,
+    documentsAfterQuote: id => describe(keyOf('3', id), children),
+    documentsBeforeReceipt: id => describe(keyOf('9', id), parents),
+  };
 }

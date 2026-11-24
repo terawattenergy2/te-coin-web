@@ -6,9 +6,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import { buildReviewData, depositPattern, needsReceiptProducts, receiptInvoiceReferences, reviewQuoteNumbers, shippingInvoiceIds, shippingPattern } from './sales-review-data.mjs';
 
+import { traceSaleDocuments } from './sale-document-trace.mjs';
+
 const pageSize = 200;
 
-export async function fetchPaidReviewReceipts(flow, interval = 300) {
+async function fetchReviewReceipts(flow, interval) {
   const receipts = new Map();
   let expected;
   for (let page = 1; page <= 1000; page++) {
@@ -39,14 +41,19 @@ export async function fetchPaidReviewReceipts(flow, interval = 300) {
       receipts.set(id, { ...receipt, documentId: id });
     }
     if (receipts.size > expected) throw new Error('จำนวนใบเสร็จรับเงินไม่ตรงกับ FlowAccount');
-    if (receipts.size === expected) return [...receipts.values()].filter(receipt =>
-      String(receipt.status) === '5' && String(receipt.statusString).toLowerCase() === 'paid' &&
-      ![receipt.isDelete, receipt.isDeleted, receipt.isCancelled].some(flag =>
-        flag === true || flag === 1 || flag === '1' || String(flag).toLowerCase() === 'true'));
+    if (receipts.size === expected) return [...receipts.values()];
     if (!data.list.length) break;
     await delay(interval);
   }
   throw new Error('ดึงใบเสร็จรับเงินไม่ครบตามจำนวนที่ FlowAccount แจ้ง');
+}
+
+const isPaidReceipt = receipt => String(receipt.status) === '5' && String(receipt.statusString).toLowerCase() === 'paid' &&
+  ![receipt.isDelete, receipt.isDeleted, receipt.isCancelled].some(flag =>
+    flag === true || flag === 1 || flag === '1' || String(flag).toLowerCase() === 'true');
+
+export async function fetchPaidReviewReceipts(flow, interval = 300) {
+  return (await fetchReviewReceipts(flow, interval)).filter(isPaidReceipt);
 }
 
 async function findReportDocuments(flow, path, keys, keyOf, matches) {
@@ -93,37 +100,38 @@ async function findReportDocuments(flow, path, keys, keyOf, matches) {
 }
 
 export async function loadSalesReview(flow, interval) {
-  const receipts = await fetchPaidReviewReceipts(flow, interval);
+  const allReceipts = await fetchReviewReceipts(flow, interval);
+  const receipts = allReceipts.filter(isPaidReceipt);
+  const installmentReceipts = receipts.filter(receipt => receipt.items.some(item =>
+    depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? ''))));
   const shippingReceipts = receipts.filter(receipt => receipt.items.some(item => shippingPattern.test(item.name || '')));
   const invoiceIds = new Set(shippingReceipts.flatMap(shippingInvoiceIds));
   const cashInvoiceIds = new Set();
-  const installmentReceipts = receipts.filter(receipt => receipt.items.some(item =>
-    depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? ''))));
   for (const receipt of new Set([...receipts.filter(needsReceiptProducts), ...installmentReceipts])) {
     for (const {type, id} of receiptInvoiceReferences(receipt)) {
       (type === '7' ? invoiceIds : cashInvoiceIds).add(id);
     }
   }
-  const invoices = await findReportDocuments(flow, 'tax-invoices', invoiceIds,
-    document => String(document.documentId ?? document.recordId));
-  const cashInvoices = await findReportDocuments(flow, 'cash-invoices', cashInvoiceIds,
-    document => String(document.documentId ?? document.recordId));
+  const contacts = new Set(installmentReceipts.map(receipt => String(receipt.contactId ?? '')).filter(Boolean));
+  const inAudit = document => contacts.has(String(document.contactId ?? ''));
+  const idOf = document => String(document.documentId ?? document.recordId);
+  const invoices = await findReportDocuments(flow, 'tax-invoices', new Set([...invoiceIds, ...contacts]), idOf,
+    document => inAudit(document) || invoiceIds.has(idOf(document)));
+  const cashInvoices = await findReportDocuments(flow, 'cash-invoices', new Set([...cashInvoiceIds, ...contacts]), idOf,
+    document => inAudit(document) || cashInvoiceIds.has(idOf(document)));
+  const billing = await findReportDocuments(flow, 'billing-notes', contacts, idOf, inAudit);
   const numbers = new Set(receipts.flatMap(receipt => receipt.items.filter(item =>
     depositPattern.test(String(item.name ?? '') + ' ' + String(item.description ?? '')) || shippingPattern.test(item.name || ''))
     .flatMap(item => reviewQuoteNumbers(item, receipt))));
-  for (const invoice of invoices.values()) {
-    for (const number of reviewQuoteNumbers({}, invoice)) numbers.add(number);
-  }
-  const quotes = await findReportDocuments(flow, 'quotations', numbers,
-    document => String(document.documentSerial || '').toUpperCase());
-  const quoteInvoiceIds = new Set([...quotes.values()].flatMap(quote => (quote.referencedToMe ?? [])
-    .filter(link => String(link.referenceId) === String(quote.documentId ?? quote.recordId) && String(link.documentType) === '7')
-    .map(link => String(link.documentId))));
-  const linkedInvoices = await findReportDocuments(flow, 'tax-invoices', numbers,
-    document => String(document.documentId ?? document.recordId),
-    document => quoteInvoiceIds.has(String(document.documentId ?? document.recordId)) ||
-      reviewQuoteNumbers({}, document).some(number => quotes.has(number)));
-  return buildReviewData(receipts, new Date(), quotes, invoices, cashInvoices, [...linkedInvoices.values()]);
+  for (const invoice of invoices.values()) for (const number of reviewQuoteNumbers({}, invoice)) numbers.add(number);
+  const numberOf = document => String(document.documentSerial ?? '').toUpperCase();
+  const quotes = await findReportDocuments(flow, 'quotations', new Set([...numbers, ...contacts]), numberOf,
+    document => inAudit(document) || numbers.has(numberOf(document)));
+  const trace = traceSaleDocuments([
+    ['3', quotes.values()], ['5', billing.values()], ['7', invoices.values()], ['35', cashInvoices.values()],
+    ['9', allReceipts.filter(inAudit)],
+  ], {strictContact:true});
+  return buildReviewData(receipts, new Date(), quotes, invoices, cashInvoices, [...invoices.values()], trace);
 }
 
 // Bangkok is UTC+07 throughout the year. 20:00 UTC is 03:00 the next day there.

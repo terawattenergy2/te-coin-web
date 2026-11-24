@@ -79,18 +79,23 @@ const flowSalesUrl = 'https://advance.flowaccount.com/N355072/business/';
 function documentLink(path, id, label) {
  return /^\d{1,20}$/.test(String(id)) ? '<a href="'+flowSalesUrl+path+'/'+id+'" target="_blank" rel="noopener noreferrer">'+E(label)+'</a>' : E(label);
 }
+const auditDocumentPath = {'3':'quotations','5':'billing-notes','7':'invoices','9':'receipts','35':'cash-invoices'};
+const auditDocumentLink = doc => documentLink(auditDocumentPath[doc.type],doc.id,doc.number)+
+ (doc.type === '9' ? ' ('+(doc.paid ? 'เก็บเงินแล้ว' : 'ยังไม่ยืนยันการเก็บเงิน')+')' : '');
 const audit = $('installmentAuditRows');
 if (DATA.installments) {
  const rows = DATA.installments.map(payment => '<tr><td>'+documentLink('quotations',payment.id,payment.number)+
   '<br>'+E(payment.customer)+'</td><td>'+money(payment.net)+'</td><td>'+money(payment.paid)+'</td><td>'+money(payment.remaining)+
-  '</td><td>'+(payment.remaining === 0 ? 'ชำระครบ' : payment.remaining == null ? 'รอตรวจยอด QT' :
-   payment.invoices.some(invoice => invoice.awaiting) ? 'รอเก็บเงิน' : 'ยังพบใบเสร็จไม่ครบ')+'</td><td>'+
+  '</td><td>'+E(payment.issue ?? (payment.remaining === 0 ? 'ชำระครบ' : payment.remaining == null ? 'รอตรวจยอด QT' :
+   payment.invoices.some(invoice => invoice.awaiting) ? 'รอเก็บเงิน' : 'ยังพบใบเสร็จไม่ครบ'))+'</td><td>'+
   [...payment.invoices.map(invoice=>documentLink('invoices',invoice.id,invoice.number)),
-   ...payment.receipts.map(receipt=>documentLink('receipts',receipt.id,receipt.number))].join(' · ')+'</td></tr>');
+   ...payment.receipts.map(receipt=>documentLink('receipts',receipt.id,receipt.number)),
+   ...(payment.documents ?? []).filter(doc=>doc.type!=='7'||!payment.invoices.some(invoice=>invoice.id===doc.id)).map(auditDocumentLink)].join(' · ')+'</td></tr>');
  audit.innerHTML = rows.length ? '<div class="scroll"><table><thead><tr><th>ใบเสนอราคา / ลูกค้า</th><th>ยอด QT</th><th>รับแล้ว</th><th>คงเหลือ</th><th>สถานะ</th><th>เอกสารอ้างอิง</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>' : '<p>ยังไม่พบใบมัดจำหรือแบ่งจ่ายที่ยืนยันว่าเป็น Sigenergy</p>';
  if (DATA.unresolvedInstallments?.length) audit.insertAdjacentHTML('beforeend',
   '<details><summary>ใบมัดจำหรือแบ่งจ่ายที่ยังยืนยัน QT ไม่ได้ ('+DATA.unresolvedInstallments.length+' ใบ)</summary><p>'+
-  DATA.unresolvedInstallments.map(receipt=>documentLink('receipts',receipt.id,receipt.number)).join(' · ')+'</p></details>');
+  DATA.unresolvedInstallments.map(receipt=>[documentLink('receipts',receipt.id,receipt.number), E(receipt.issue),
+   ...(receipt.documents ?? []).map(auditDocumentLink)].filter(Boolean).join(' · ')).join('<br>')+'</p></details>');
 } else audit.textContent = 'รายงานงวดชำระจะแสดงหลังอัปเดตข้อมูลจาก FlowAccount';
 function displayQuantity(row) {
  if (row[21] === 'เงินมัดจำ') return row[23] == null ? 'ดูจำนวนตาม QT' : E(num(row[23])+' '+row[24])+' <small>(ตาม QT)</small>';

@@ -2,7 +2,7 @@ const amount = value => value == null || String(value).trim() === '' || !Number.
  ? null : Math.round(Number(value) * 100);
 const normalized = value => String(value ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
 
-export function summarizeQuotePayments(quote, receipt, receiptTotals, receiptNet, invoices = []) {
+export function summarizeQuotePayments(quote, receipt, receiptTotals, receiptNet, invoices = [], tracedReceipts = new Map()) {
  const number = normalized(quote.documentSerial);
  const quoteId = String(quote.documentId ?? quote.recordId ?? '');
  const currentId = String(receipt.documentId ?? receipt.recordId);
@@ -29,6 +29,9 @@ export function summarizeQuotePayments(quote, receipt, receiptTotals, receiptNet
  }
  if (Number.isFinite(receiptNet)) payments.set(currentId, {
   id:currentId, number: receipt.documentSerial, date: String(receipt.publishedOn || receipt.documentDate || '').slice(0, 10), net:receiptNet,
+ });
+ for (const [id, item] of tracedReceipts) payments.set(id, {
+  id, number:item.number, date:item.date, net:item.netCents / 100,
  });
  const receipts = [...payments.values()].sort((a, b) => a.date.localeCompare(b.date) || a.number.localeCompare(b.number));
  const current = payments.get(currentId);

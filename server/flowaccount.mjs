@@ -522,7 +522,10 @@ export async function handler(req,res){
         (number !== 'QT2026100031' || String(result.value.documentId ?? result.value.recordId) !== '98747912' ||
          String(result.value.documentSerial ?? '').toUpperCase() === 'INV2026100034')
         ? [result.value] : []);
-       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt), invoices);
+       const auditedPayment = data?.installments?.find(payment => payment.number === number);
+       const traced = new Map((auditedPayment?.receipts ?? []).map(item => [item.id,
+        {...item, netCents: Math.round(item.net * 100)}]));
+       quotePayment = summarizeQuotePayments(quote, receipt, receiptTotals, receiptNetBeforeVat(receipt), invoices, traced);
       }
      }
     }
