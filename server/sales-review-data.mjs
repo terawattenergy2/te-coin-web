@@ -270,7 +270,8 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
     raw: raw[i], net: net[i], charge: shipping ? String(item.name || '').trim() : 'เงินมัดจำ',
    }));
   });
-  const invoiceRefs = receiptInvoiceReferences(doc).map(({type,id}) => (type === '7' ? invoices : cashInvoices).get(id));
+  const structuredRefs = receiptInvoiceReferences(doc);
+  const invoiceRefs = structuredRefs.map(({type,id}) => (type === '7' ? invoices : cashInvoices).get(id));
   const namedInvoiceRefs = (String(doc.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? [])
    .map(number => byInvoiceNumber.get(number));
   const quantityInvoices = new Set([...invoiceRefs, ...namedInvoiceRefs].filter(invoice =>
@@ -286,9 +287,21 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
   let expected = rawItems(doc.items);
   let documents = [doc.documentSerial];
   let reason = '';
+  const missing = [];
   if (isBatch || !expected.length && !depositItems.length && invoiceRefs.length) {
    documents = [...quantityInvoices].map(invoice => invoice.documentSerial);
    expected = [...quantityInvoices].flatMap(invoice => rawItems(invoice.items ?? []));
+   const references = [...doc.items, ...(doc.documentReference ?? []), ...(doc.referencedByMe ?? [])];
+   for (const [index, ref] of structuredRefs.entries()) {
+    if (quantityInvoices.has(invoiceRefs[index])) continue;
+    const entry = references.find(link => String(link.documentId ?? link.referenceId) === ref.id);
+    missing.push(entry?.documentSerial || entry?.referenceDocumentSerial || (ref.type === '35' ? 'CAI #' : 'INV #') + ref.id);
+   }
+   const serials = String(doc.reference ?? '').toUpperCase().match(/\bINV[0-9]+\b/g) ?? [];
+   namedInvoiceRefs.forEach((invoice,index) => { if (!quantityInvoices.has(invoice)) missing.push(serials[index]); });
+   for (const invoice of quantityInvoices) {
+    if (!rawItems(invoice.items ?? []).length) missing.push(invoice.documentSerial);
+   }
    if (!documents.length || [...invoiceRefs, ...namedInvoiceRefs].some(invoice => !quantityInvoices.has(invoice)) ||
        [...quantityInvoices].some(invoice => !rawItems(invoice.items ?? []).length))
     reason = 'อ่านรายการสินค้าใน INV อ้างอิงได้ไม่ครบ';
@@ -296,7 +309,10 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    if (quote && sameContact(doc, quote) && !/void|cancel|draft/i.test(String(quote.statusString ?? ''))) {
     documents.push(quote.documentSerial);
     expected = [...expected, ...rawItems(quote.items ?? [])];
-   } else reason = 'ยังยืนยัน QT ที่อ้างอิงไม่ได้';
+   } else {
+    reason = 'ยังยืนยัน QT ที่อ้างอิงไม่ได้';
+    missing.push(...depositQuotes);
+   }
   }
   if (!reason && !expected.length) reason = 'เอกสารไม่มีบรรทัดสินค้าสำหรับเทียบ';
   if (!reason && expected.some(item => amount(item.quantity) == null))
@@ -308,7 +324,7 @@ export function buildReviewData(receipts, now = new Date(), quotes = new Map(), 
    const unit = String(item.unitName ?? '').trim() || 'ไม่ระบุหน่วย';
    byUnit.set(unit, (byUnit.get(unit) ?? 0) + units);
   }
-  sourceQuantities.push([String(doc.documentId),doc.documentSerial,isBatch,documents,[...byUnit],reason]);
+  sourceQuantities.push([String(doc.documentId),doc.documentSerial,isBatch,documents,[...byUnit],reason,[...new Set(missing.length ? missing : reason ? documents : [])]]);
   for (const {item, raw, net, charge, source, quoteQuantity, quoteUnit} of lines) {
    let referenceQuantity;
    let referenceUnit = '';

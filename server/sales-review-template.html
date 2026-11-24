@@ -140,7 +140,12 @@ function summarizeReceiptQuantities(rows) {
  }
  return totals;
 }
-const quantityByReceipt = summarizeReceiptQuantities(R);
+const quantityFromReportRows = summarizeReceiptQuantities(R);
+const quantityByReceipt = new Map(quantityFromReportRows);
+for (const [id, , , , expected, reason] of DATA.sourceQuantities ?? []) {
+ if (reason) continue;
+ quantityByReceipt.set(id,{units:new Map(expected),quantity:expected.reduce((sum,[,quantity])=>sum+quantity,0),incomplete:false});
+}
 function receiptQuantityText(receipt) {
  if (!receipt?.units.size) return 'ไม่พบจำนวนในเอกสาร';
  const breakdown = [...receipt.units].map(([unit, quantity]) => num(quantity)+' '+unit);
@@ -148,32 +153,38 @@ function receiptQuantityText(receipt) {
  return text + (receipt.incomplete ? ' (ข้อมูลบางรายการ)' : '');
 }
 if (DATA.sourceQuantities) {
- const results = DATA.sourceQuantities.map(([id,number,batch,sources,expected,reason]) => {
+ const results = DATA.sourceQuantities.map(([id,number,batch,sources,expected,reason,missing = []]) => {
   const actual = quantityByReceipt.get(id);
   const expectedMap = new Map(expected);
   const units = new Set([...expectedMap.keys(), ...(actual?.units.keys() ?? [])]);
   const differences = [...units].map(unit => [unit, (actual?.units.get(unit) ?? 0) - (expectedMap.get(unit) ?? 0)])
    .filter(([,difference]) => Math.abs(difference) > 0.0000001);
-  return {number,batch,sources,expected,actual,differences,reason};
+  const previous = quantityFromReportRows.get(id);
+  const previousUnits = previous?.units ?? new Map();
+  const priorKeys = new Set([...expectedMap.keys(),...previousUnits.keys()]);
+  const corrected = !reason && [...priorKeys].some(unit =>
+   Math.abs((previousUnits.get(unit) ?? 0)-(expectedMap.get(unit) ?? 0)) > 0.0000001);
+  return {number,batch,sources,expected,actual,differences,reason,missing,previous,corrected};
  });
  const label = pairs => [...pairs].map(([unit,n])=>num(n)+' '+unit).join(' + ') || '—';
  const mismatches = results.filter(row=>!row.reason && row.differences.length);
  const incomplete = results.filter(row=>row.reason);
+ const corrected = results.filter(row=>row.corrected);
  const compared = results.filter(row=>!row.reason);
  const summary = 'เทียบ '+results.length+' ใบ · ตรง '+(compared.length-mismatches.length)+' ใบ · ต่าง '+mismatches.length+
-  ' ใบ · ยังสรุปไม่ได้ '+incomplete.length+' ใบ · ใบเสร็จรวม '+results.filter(row=>row.batch).length+
+  ' ใบ · แก้จำนวนจากต้นทาง '+corrected.length+' ใบ · ยังสรุปไม่ได้ '+incomplete.length+' ใบ · ใบเสร็จรวม '+results.filter(row=>row.batch).length+
   ' ใบ (ต่าง '+mismatches.filter(row=>row.batch).length+' ใบ · ยังสรุปไม่ได้ '+incomplete.filter(row=>row.batch).length+' ใบ)';
- const details = [...mismatches,...incomplete].map(row=>'<tr><td>'+E(row.number)+'</td><td>'+E(row.sources.join(', '))+
+ const details = [...mismatches,...incomplete,...corrected].map(row=>'<tr><td>'+E(row.number)+'</td><td>'+E(row.sources.join(', '))+
   '</td><td>'+E(receiptQuantityText(row.actual))+'</td><td>'+E(label(row.expected))+
-  '</td><td>'+E(row.reason || label(row.differences))+'</td></tr>').join('');
+  '</td><td>'+E(row.reason ? [row.reason,...row.missing].join(' · ') : row.corrected ? 'แก้จาก '+receiptQuantityText(row.previous) : label(row.differences))+'</td></tr>').join('');
  $('installmentAudit').insertAdjacentHTML('afterend','<details class="card"><summary>เทียบจำนวนทั้งใบกับ FlowAccount</summary>'+
-  '<p>'+E(summary)+'</p><button id="exportQuantityDifferences" type="button">ดาวน์โหลดรายการต่างและรอตรวจ CSV</button><div class="scroll"><table><thead><tr><th>ใบเสร็จ</th><th>เอกสารต้นทาง</th><th>จำนวน CRM</th>'+
+  '<p>'+E(summary)+'</p><button id="exportQuantityDifferences" type="button">ดาวน์โหลดรายการแก้ไขและรอตรวจ CSV</button><div class="scroll"><table><thead><tr><th>ใบเสร็จ</th><th>เอกสารต้นทาง</th><th>จำนวน CRM</th>'+
   '<th>จำนวนจากต้นทางที่อ่านได้</th><th>ส่วนต่าง CRM ลบต้นทาง / สาเหตุ</th></tr></thead><tbody>'+details+
   '</tbody></table></div></details>');
  $('exportQuantityDifferences').onclick = () => {
-  const columns = ['ใบเสร็จ','ใบเสร็จรวม','เอกสารต้นทาง','จำนวน CRM','จำนวนจากต้นทางที่อ่านได้','ส่วนต่าง CRM ลบต้นทาง','สาเหตุ'];
-  const rows = [...mismatches,...incomplete].map(row => [row.number,row.batch?'ใช่':'',row.sources.join(', '),
-   receiptQuantityText(row.actual),label(row.expected),row.reason?'':label(row.differences),row.reason]);
+  const columns = ['ใบเสร็จ','ใบเสร็จรวม','เอกสารต้นทาง','จำนวน CRM','จำนวนจากต้นทางที่อ่านได้','ส่วนต่าง CRM ลบต้นทาง','จำนวนก่อนแก้','สาเหตุ','เอกสารที่ขาดข้อมูล'];
+  const rows = [...mismatches,...incomplete,...corrected].map(row => [row.number,row.batch?'ใช่':'',row.sources.join(', '),
+   receiptQuantityText(row.actual),label(row.expected),row.reason?'':label(row.differences),row.corrected?receiptQuantityText(row.previous):'',row.reason,row.missing.join(', ')]);
   const csv = [columns,...rows].map(row=>row.map(cell=>'"'+String(cell??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8'}));
   const link = document.createElement('a');
