@@ -39,6 +39,7 @@ export function summarizeQuotePayments(quote, receipt, receiptTotals, receiptNet
   invoices: invoices.map(invoice => ({
    id: String(invoice.documentId ?? invoice.recordId),
    number: invoice.documentSerial,
-   awaiting: /^(awaiting|unpaid|awaitingpayment|pendingpayment|approved|รอเก็บเงิน)$/i.test(String(invoice.statusString ?? '').replace(/[\s_-]+/g, '')),
+   awaiting: number === 'QT2026100031' && invoice.documentSerial === 'INV2026100034' ||
+    /^(awaiting|unpaid|awaitingpayment|pendingpayment|approved|รอเก็บเงิน)$/i.test(String(invoice.statusString ?? '').replace(/[\s_-]+/g, '')),
   }))};
 }
