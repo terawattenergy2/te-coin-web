@@ -60,7 +60,7 @@ let quotePending;
 let quoteNamesLoaded = false;
 let groupReadSucceeded = false;
 const canonicalSeller = name => sellerAliases.get(String(name ?? '').trim()) ?? name;
-const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading, readCachedQuotes);
+const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading, readCachedQuotes, showReceiptProducts);
 const sellerReview = createSellerReview(payload => withLoading('seller', 'กำลังบันทึกกลุ่มชื่อเซลส์',
   'กำลังอัปเดตชื่อหลักในรายงาน CRM', async () => json(await reportRequest('confirm-sellers', 'POST', undefined, payload))), updateGroups);
 
@@ -143,6 +143,36 @@ for (const [value, label] of labels) $('audit-filter').add(new Option(label, val
 const projectMoney = new Intl.NumberFormat('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
 let projectRows = [];
 
+async function showReceiptProducts(number) {
+  const receipts = rawReport?.dataset.receiptTotals ?? [];
+  const matches = receipts.filter(receipt => receipt[1] === number);
+  const dialog = $('receipt-products');
+  const status = $('receipt-products-status');
+  const list = $('receipt-products-list');
+  $('receipt-products-title').textContent = 'สินค้าในใบเสร็จ ' + number;
+  list.replaceChildren();
+  status.textContent = matches.length === 1 ? 'กำลังอ่านรายการจาก FlowAccount…' : 'ไม่พบใบเสร็จที่ระบุได้ในรายงาน CRM';
+  if (!dialog.open) dialog.showModal();
+  if (matches.length !== 1) return;
+  const epoch = loginEpoch;
+  try {
+    const {items, missing} = await json(await reportRequest('receipt-items', 'GET', matches[0][0]));
+    if (epoch !== loginEpoch || !dialog.open || $('receipt-products-title').textContent !== 'สินค้าในใบเสร็จ ' + number) return;
+    status.textContent = items.length ? 'จำนวนสินค้าตามเอกสารที่แสดงในวงเล็บ' : 'ยังไม่พบรายการสินค้าจากเอกสารต้นทาง';
+    if (missing?.length) status.textContent += ' · ยังอ่านรายละเอียดไม่ได้จาก ' + missing.join(', ');
+    list.replaceChildren(...items.map(item => {
+      const li = document.createElement('li');
+      li.textContent = [item.name, item.quantity == null ? 'ไม่ระบุจำนวน' : [item.quantity, item.unit].filter(value => value != null).join(' ')]
+        .join(' · ') + (item.source ? ' (' + item.source + ')' : '');
+      return li;
+    }));
+  } catch {
+    if (epoch === loginEpoch && $('receipt-products-title').textContent === 'สินค้าในใบเสร็จ ' + number) {
+      status.textContent = 'อ่านรายละเอียดไม่สำเร็จ กรุณาลองเปิดอีกครั้ง';
+    }
+  }
+}
+
 function renderProjects() {
   const dataset = rawReport?.dataset;
   const projectsReady = dataset?.meta.receiptProjectVersion === 1;
@@ -177,9 +207,14 @@ function renderProjects() {
       link.textContent = number;
       cell.append(link);
     } else cell.textContent = number;
-    for (const value of [date, receipt[11] || 'ไม่ระบุ', receipt[7] == null ? 'รอตรวจ' : projectMoney.format(receipt[7])]) {
+    for (const value of [date, receipt[11] || 'ไม่มีชื่อโปรเจกต์บนใบเสร็จ', receipt[7] == null ? 'รอตรวจ' : projectMoney.format(receipt[7])]) {
       row.insertCell().textContent = value;
     }
+    const details = document.createElement('button');
+    details.type = 'button';
+    details.textContent = 'ดูสินค้า';
+    details.addEventListener('click', () => showReceiptProducts(number));
+    row.insertCell().append(details);
     table.append(row);
   }
   $('project-rows').replaceChildren(table);
@@ -513,6 +548,7 @@ function showLogin(message = '') {
   savingProduct = false;
   $('product-group-save').disabled = $('product-group-close').disabled = false;
   if (productEditor.open) productEditor.close();
+  if ($('receipt-products').open) $('receipt-products').close();
   quoteNamesLoaded = groupReadSucceeded = false;
   sellerAliases.clear();
   sellerReview.reset();
@@ -634,6 +670,10 @@ window.addEventListener('message', async event => {
   }
   if (selectedView === 'dashboard' && event.data?.type === 'crm-dashboard-detail') {
     document.body.classList.toggle('dashboard-detail-open', event.data.open === true);
+    return;
+  }
+  if (event.data?.type === 'crm-open-receipt-products') {
+    if (typeof event.data.number === 'string' && /^RE[0-9]+$/i.test(event.data.number)) showReceiptProducts(event.data.number);
     return;
   }
   if (event.data?.type === 'crm-receipt-items-request') {

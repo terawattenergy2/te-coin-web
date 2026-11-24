@@ -485,21 +485,40 @@ export async function handler(req,res){
     if (!['7', '35'].includes(type) || !/^\d{1,20}$/.test(refId)) continue;
     sources.set(type + ':' + refId, {type, refId, number:ref.documentSerial ?? ref.referenceDocumentSerial});
    }
-   if (direct.length && !sources.size) return reply(200, {items:toItems(direct, receipt.documentSerial)});
    const items = toItems(direct, receipt.documentSerial);
    const missing = [];
+   const seen = new Set();
+   const addInvoice = (invoice, number) => {
+    const serial = String(invoice.documentSerial || number).toUpperCase();
+    if (seen.has(serial)) return;
+    seen.add(serial);
+    const products = documentItems(invoice).filter(item => item.name.trim() && !/^[-–—]+$/.test(item.name.trim()));
+    if (products.length) items.push(...toItems(products, serial));
+    else missing.push(serial);
+   };
    for (const {type, refId, number} of sources.values()) {
     try {
      const invoice = await fetchSalesDocument(referenceTypes[type] + '/' + refId, refId);
-     const products = documentItems(invoice).filter(item => item.name.trim() && !/^[-–—]+$/.test(item.name.trim()));
-     if (products.length) items.push(...toItems(products, invoice.documentSerial || number || refId));
-     else missing.push(invoice.documentSerial || number || refId);
+     addInvoice(invoice, number || refId);
     } catch (error) {
      if (error.retryAfter) throw error;
      missing.push(number || refId);
     }
    }
-   return reply(200, {items, missing});
+   if (!direct.length) {
+    const references = [receipt.reference, ...[...(receipt.items || []), ...(receipt.documentReference || []), ...(receipt.referencedByMe || [])]
+      .flatMap(ref => [ref.documentSerial, ref.referenceDocumentSerial])];
+    const numbers = new Set(references.flatMap(value => String(value ?? '').toUpperCase().match(/\bINV[0-9][A-Z0-9-]{3,25}\b/g) || []));
+    for (const number of [...numbers].filter(number => !seen.has(number)).slice(0, 10)) {
+     const query = new URLSearchParams({searchString:number, currentPage:'1', pageSize:'20'});
+     const response = await flow('tax-invoices?' + query);
+     const matches = documents(response).filter(invoice => String(invoice.documentSerial).toUpperCase() === number &&
+      receipt.contactId != null && String(invoice.contactId) === String(receipt.contactId));
+     if (matches.length === 1) addInvoice(matches[0], number);
+     else missing.push(number);
+    }
+   }
+   return reply(200, {items, missing:[...new Set(missing)].filter(number => !items.some(item => item.source === number))});
   }
   if (req.method === 'GET' && route === '/sales-review/deposit') {
    const id = u.searchParams.get('id') || '';

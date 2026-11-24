@@ -14,7 +14,8 @@ function renderTable(target, records) {
     const row = document.createElement('tr');
     for (const value of record) {
       const cell = document.createElement('td');
-      cell.textContent = value || '—';
+      if (value instanceof Node) cell.append(value);
+      else cell.textContent = value || '—';
       row.append(cell);
     }
     body.append(row);
@@ -31,7 +32,7 @@ function counts(rows) {
   return result;
 }
 
-export function createSaleSuccess(request, canonicalSeller, beginLoading, readCache) {
+export function createSaleSuccess(request, canonicalSeller, beginLoading, readCache, showReceiptProducts) {
   const sellerOf = row => canonicalSeller(row.seller) || missingSeller;
   let data;
   let pending = false;
@@ -86,9 +87,23 @@ export function createSaleSuccess(request, canonicalSeller, beginLoading, readCa
     const detail = filtered.filter(row => !outcome.value || row.outcome === outcome.value);
     const pages = Math.max(1, Math.ceil(detail.length / pageSize));
     page = Math.min(page, pages - 1);
+    function receiptLinks(row) {
+      if (!row.receipts?.length) return row.receiptIssue;
+      const links = document.createDocumentFragment();
+      for (const [index, receipt] of row.receipts.entries()) {
+        if (index) links.append(' · ');
+        if (receipt.invoiceNumbers.length) links.append(receipt.invoiceNumbers.join(' / ') + ' → ');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = receipt.number;
+        button.onclick = () => showReceiptProducts(receipt.number);
+        links.append(button);
+      }
+      return links;
+    }
     renderTable('success-quotes', detail.slice(page * pageSize, (page + 1) * pageSize).map(row =>
       [row.number, row.date, row.customer, sellerOf(row), outcomes[row.outcome], row.status,
-        row.receipts?.map(receipt => [receipt.invoiceNumbers.join(' / '), receipt.number].filter(Boolean).join(' → ')).join(' · ') || row.receiptIssue,
+        receiptLinks(row),
         receiptNet(row.receiptNetCents)]));
     $('success-prev').disabled = page === 0;
     $('success-next').disabled = page + 1 >= pages;

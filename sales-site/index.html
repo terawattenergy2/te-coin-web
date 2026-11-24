@@ -44,7 +44,7 @@
 <div id="report-loading" class="loading-slot" hidden></div>
 <iframe id="frame" title="รายงานยอดขายแยกตามเซลส์และสินค้า" sandbox="allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox" hidden></iframe>
 <section id="projects" hidden aria-label="ยอดตามโปรเจกต์">
-<p>ยอดท้ายใบเสร็จที่เก็บเงินแล้ว ไม่รวม VAT ตามชื่อโปรเจกต์ใน FlowAccount</p>
+<p>เลือกโปรเจกต์และช่วงวันที่เพื่อดูยอดสุทธิทั้งใบของใบเสร็จที่เก็บเงินแล้ว ไม่รวม VAT กดดูสินค้าเพื่ออ่านรายการและเอกสารอ้างอิง</p>
 <div class="toolbar success-toolbar">
 <label>โปรเจกต์<select id="project-name"></select></label>
 <label>ตั้งแต่วันที่<input type="date" id="project-from"></label>
@@ -57,6 +57,12 @@
 </div>
 </section>
 </section>
+<dialog id="receipt-products" aria-labelledby="receipt-products-title">
+<form method="dialog"><button>ปิด</button></form>
+<h2 id="receipt-products-title">รายละเอียดสินค้า</h2>
+<p id="receipt-products-status" role="status"></p>
+<ul id="receipt-products-list"></ul>
+</dialog>
 <section id="success" hidden aria-label="Sale Success">
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>
 <div class="toolbar success-toolbar">

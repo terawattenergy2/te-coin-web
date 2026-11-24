@@ -228,3 +228,8 @@ body.dashboard-detail-open #report::after {
 .product-group-heading h2 { margin: 0; }
 
 #projects { background: white; border: 1px solid #d6e1ed; border-radius: 14px; padding: clamp(12px, 3vw, 24px); }
+
+#receipt-products { width: min(720px, calc(100% - 2rem)); max-height: 85vh; border: 1px solid #d6e1ed; border-radius: 14px; padding: 20px; color: inherit; }
+#receipt-products::backdrop { background: #152d4880; }
+#receipt-products form { float: inline-end; }
+#receipt-products li { margin-block: .4rem; overflow-wrap: anywhere; }
