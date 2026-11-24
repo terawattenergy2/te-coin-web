@@ -66,7 +66,7 @@
 <section id="success" hidden aria-label="Sale Success">
 <p class="success-help">วัดตามชื่อเซลส์บนใบเสนอราคา ปิดได้เมื่อ FlowAccount ระบุว่าอนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ ใบที่ยังรออนุมัติ รับมัดจำ หรือแบ่งบิลอยู่ในกลุ่มยังเปิดอยู่ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</p>
 <div class="toolbar success-toolbar">
-<label>ปีที่ออกใบเสนอราคา<select id="success-year"><option value="">ทุกปี</option></select></label>
+<label>ปีเอกสาร<select id="success-year"><option value="">ทุกปี</option></select></label>
 <div class="success-seller-field">
 <span id="success-seller-label">เซลส์</span>
 <details id="success-seller" class="success-seller-picker">
@@ -85,7 +85,7 @@
 <div id="success-loading" class="loading-slot" hidden></div>
 <p id="success-status" role="status"></p>
 <p id="success-selected" hidden></p>
-<p>ยอดสุทธิหลังปรับท้ายใบเสร็จ (ไม่รวม VAT) รวมเฉพาะใบเสร็จที่ชำระครบและเชื่อมกับใบเสนอราคาได้</p>
+<p>ยอดขายรายเซลส์ใช้ใบเสร็จที่ชำระครบทั้งหมดและชื่อเซลส์บนใบเสร็จ จากชุดข้อมูลเดียวกับแดชบอร์ด (ไม่รวม VAT) ปีที่เลือกใช้วันที่ของเอกสารแต่ละประเภท ช่องค้นหากรองเฉพาะใบเสนอราคา</p><p id="success-receipt-date" class="muted"></p>
 <div id="success-metrics" class="success-metrics"></div>
 <div class="source-heading">
 <h2>ผลงานรายเซลส์</h2>
@@ -97,7 +97,7 @@
 <ul>
 <li>FlowAccount Production · GET /v1/quotations · นับตามวันที่ออกใบเสนอราคาและชื่อเซลส์บนเอกสาร</li>
 <li>ปิดได้เมื่ออนุมัติและดำเนินการแล้ว ปิดไม่ได้เมื่อถูกปฏิเสธ เปอร์เซ็นต์คิดจากใบเสนอราคาที่นับทั้งหมด</li>
-<li>มูลค่าเป็นยอดสุทธิไม่รวม VAT ของใบเสร็จที่ชำระครบและมีข้อมูลอ้างอิงเชื่อมกับใบเสนอราคาได้โดยตรงหรือผ่านใบแจ้งหนี้และใบวางบิล โดยใช้สูตรเดียวกับรายงานยอดขาย ใบเสนอราคาที่ปิดได้อาจยังไม่มีใบเสร็จชำระครบที่เชื่อมได้</li>
+<li>ตารางรายเซลส์ใช้วันที่และชื่อเซลส์บนใบเสร็จที่ชำระครบ รายละเอียด QT แสดงใบเสร็จที่เชื่อมกับใบเสนอราคา</li>
 </ul>
 </section>
 <div class="success-table" tabindex="0" aria-label="ผลงานรายเซลส์">
@@ -111,7 +111,7 @@
 <span id="success-page" role="status"></span>
 </div>
 <div class="success-table" tabindex="0" aria-label="รายละเอียดใบเสนอราคา">
-<table><thead><tr><th scope="col">เลขใบเสนอราคา</th><th scope="col">วันที่</th><th scope="col">ลูกค้า</th><th scope="col">เซลส์</th><th scope="col">ผลลัพธ์</th><th scope="col">สถานะ FlowAccount</th><th scope="col">เอกสารอ้างอิง / สถานะการเชื่อม</th><th scope="col">ยอดสุทธิใบเสร็จ (ไม่รวม VAT)</th></tr></thead><tbody id="success-quotes"></tbody></table>
+<table><thead><tr><th scope="col">เลขใบเสนอราคา</th><th scope="col">วันที่</th><th scope="col">ลูกค้า</th><th scope="col">เซลส์</th><th scope="col">ผลลัพธ์</th><th scope="col">สถานะ FlowAccount</th><th scope="col">เอกสารอ้างอิง / สถานะการเชื่อม</th><th scope="col">ยอดใบเสร็จที่เชื่อมกับ QT (ไม่รวม VAT)</th></tr></thead><tbody id="success-quotes"></tbody></table>
 </div>
 </section>
 <section id="review" hidden aria-label="ตรวจสอบข้อมูล">

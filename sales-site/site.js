@@ -60,7 +60,7 @@ let quotePending;
 let quoteNamesLoaded = false;
 let groupReadSucceeded = false;
 const canonicalSeller = name => sellerAliases.get(String(name ?? '').trim()) ?? name;
-const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading, readCachedQuotes, showReceiptProducts);
+const saleSuccess = createSaleSuccess(loadQuotes, canonicalSeller, beginLoading, readCachedQuotes, showReceiptProducts, () => rawReport?.dataset);
 const sellerReview = createSellerReview(payload => withLoading('seller', 'กำลังบันทึกกลุ่มชื่อเซลส์',
   'กำลังอัปเดตชื่อหลักในรายงาน CRM', async () => json(await reportRequest('confirm-sellers', 'POST', undefined, payload))), updateGroups);
 
@@ -630,12 +630,12 @@ async function openReport() {
       groupReadSucceeded = true;
       sellerAliases = new Map(groupResult.groups.flatMap(group => group.names.map(name => [name, group.canonical])));
       sellerReview.showGroups(groupResult.groups);
-      saleSuccess.regroup();
     }
     if (productVersion === productGroupVersion && productResult.groups) {
       productGroups = new Map(productResult.groups.map(group => [group.productKey, group]));
     }
     rawReport = {html, dataset};
+    saleSuccess.regroup();
     if (auditRows) renderAudit();
     sellerReview.addNames(dataset.rows.map(row => row[3]));
     setReportFrame();
