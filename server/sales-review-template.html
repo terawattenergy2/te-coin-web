@@ -2,6 +2,12 @@
 <html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รายงานยอดขายแยกเซลส์และสินค้า — FlowAccount</title>
 <style>
 :root{--ink:#172c43;--muted:#53667b;--navy:#10283f;--teal:#007f82;--line:#d8e2e9;--bg:#f3f6f9}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,sans-serif}header{background:var(--navy);color:#fff;padding:28px max(22px,calc((100vw - 1420px)/2));}header h1{font-size:27px;margin:6px 0}header p{margin:4px 0;color:#d4e6f3}.eyebrow{font-size:13px;letter-spacing:2px;color:#9ed6da}main{max-width:1464px;margin:auto;padding:24px 22px 50px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}button,select,input{font:inherit;border:1px solid #aebfcd;border-radius:8px;min-height:44px;background:#fff;color:var(--ink)}button{padding:8px 16px;cursor:pointer}button:hover{background:#edf5f7}button.active,button.primary{background:var(--teal);color:#fff;border-color:var(--teal)}button:disabled{opacity:.45;cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #63bbcc;outline-offset:2px}label{font-size:14px;font-weight:600;display:flex;flex-direction:column;gap:5px}select,input{padding:8px 10px;width:100%}.filters{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:14px}.wide{grid-column:span 2}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.metric{padding:18px;background:#fff;border:1px solid var(--line);border-radius:12px}.metric small{display:block;color:var(--muted)}.metric strong{display:block;font-size:26px;letter-spacing:-.5px;margin-top:8px}.note{padding:14px 18px;background:#fff6dc;border-left:4px solid #c58b12;border-radius:6px;font-size:14px;margin:14px 0}.muted{color:var(--muted);font-size:14px}.tabs{display:flex;gap:8px;flex-wrap:wrap}.result-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin:12px 0}.result-head h2{font-size:21px;margin:0}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th{background:#edf3f7;text-align:left;white-space:nowrap;color:#314b63;padding:12px}td{padding:12px;border-bottom:1px solid #e0e7ec;vertical-align:top}tbody tr:hover{background:#f4f9fa}.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}td.name{min-width:200px;max-width:380px;overflow-wrap:anywhere}.link{border:0;padding:0;min-height:32px;color:#006d80;text-align:left;background:none;text-decoration:underline}.badge{display:inline-block;border-radius:5px;background:#e6f2ef;color:#236b57;padding:2px 7px;font-size:12px}.warn{background:#fff0cb;color:#805b08}.pager{display:flex;gap:16px;justify-content:flex-end;align-items:center;margin-top:18px}.explain{margin-top:18px;font-size:14px}.explain summary{cursor:pointer;font-weight:650}.wrap{white-space:normal;overflow-wrap:anywhere}dialog{border:0;border-radius:16px;padding:24px;max-width:1000px;width:94%;max-height:85vh;color:var(--ink)}dialog::backdrop{background:#10283f99}dialog pre{white-space:pre-wrap;font:14px/1.6 system-ui}.dialog-head{display:flex;justify-content:space-between;gap:16px;align-items:center}footer{font-size:13px;color:var(--muted);margin-top:24px}@media(max-width:850px){.filters{grid-template-columns:repeat(2,minmax(130px,1fr))}.metrics{grid-template-columns:repeat(2,1fr)}.metric strong{font-size:22px}header h1{font-size:23px}}@media(max-width:480px){main{padding:16px 12px}.card{padding:14px}.wide{grid-column:span 2}.result-head{display:block}.metric{padding:12px}.metric strong{font-size:20px}.pager{justify-content:space-between;gap:8px}}
+
+.search-field { position: relative; }
+.search-options { position: absolute; z-index: 5; top: 100%; inset-inline: 0; max-height: 16rem; overflow: auto; background: white; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px #172c4326; }
+.search-options [role="option"] { padding: 8px 12px; cursor: pointer; overflow-wrap: anywhere; }
+.search-options [role="option"]:hover,
+.search-options [aria-selected="true"] { background: #e7f1fc; }
 </style></head><body>
 <header><div class="eyebrow">TERAWATT · SALES REVIEW</div><h1>ยอดขายแยกเซลส์และสินค้า</h1><p id="scope"></p><p>ใบเสร็จรับเงินที่ชำระครบ · FlowAccount Production</p></header>
 <main><section class="card" aria-label="ตัวกรองรายงาน"><div class="tools"><button id="sig" class="primary">เฉพาะ Sigenergy</button><button id="all">ดูสินค้าทั้งหมด</button><button id="reset">ล้างตัวกรองทั้งหมด</button></div><div class="filters">
@@ -206,13 +212,85 @@ $('installmentAudit').insertAdjacentHTML('beforeend',
  ' บรรทัด · ตาม QT '+num(quantityCounts.quote)+' บรรทัด · ยังไม่พบจำนวน '+num(quantityCounts.missing)+
  ' บรรทัด · ค่าบริการที่ไม่มีจำนวนสินค้า '+num(quantityCounts.fees)+' บรรทัด</p>');
 const filterInputs = new Map();
-function attachSuggestions(input) {
-  const list = document.createElement('datalist');
-  list.id = input.id + '-suggestions';
-  input.setAttribute('list', list.id);
+function attachSuggestions(input, values) {
+  const menu = document.createElement('div');
+  menu.className = 'search-options';
+  menu.id = input.id + '-suggestions';
+  menu.setAttribute('role', 'listbox');
+  menu.hidden = true;
+  input.parentElement.classList.add('search-field');
+  input.after(menu);
   input.setAttribute('autocomplete', 'off');
-  input.after(list);
-  return list;
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', menu.id);
+  let active = -1;
+
+  function close() {
+    menu.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+  function choose(option) {
+    input.value = option.textContent;
+    input.dispatchEvent(new Event('input', {bubbles: true}));
+    close();
+  }
+  function show() {
+    const query = input.value.trim().toLowerCase();
+    const matches = values(query);
+    active = -1;
+    input.removeAttribute('aria-activedescendant');
+    menu.replaceChildren(...matches.map((value, index) => {
+      const item = document.createElement('div');
+      item.id = menu.id + '-' + index;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', 'false');
+      item.textContent = value;
+      item.addEventListener('mousedown', event => event.preventDefault());
+      item.addEventListener('click', () => choose(item));
+      return item;
+    }));
+    menu.hidden = matches.length === 0;
+    input.setAttribute('aria-expanded', String(!menu.hidden));
+  }
+
+  close();
+  input.addEventListener('focus', show);
+  input.addEventListener('input', show);
+  input.addEventListener('blur', close);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      close();
+      return;
+    }
+    if (event.key === 'Enter' && !menu.hidden && active >= 0) {
+      event.preventDefault();
+      choose(menu.children[active]);
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    if (menu.hidden) show();
+    if (menu.hidden) return;
+    event.preventDefault();
+    menu.children[active]?.setAttribute('aria-selected', 'false');
+    active = event.key === 'ArrowDown' ? Math.min(active + 1, menu.children.length - 1) : Math.max(active - 1, 0);
+    const option = menu.children[active];
+    option.setAttribute('aria-selected', 'true');
+    input.setAttribute('aria-activedescendant', option.id);
+    option.scrollIntoView({block: 'nearest'});
+  });
+}
+
+function matchingSuggestions(values, query) {
+  const starts = [];
+  const contains = [];
+  for (const [key, value] of values) {
+    if (key.startsWith(query)) starts.push(value);
+    else if (contains.length < 12 && key.includes(query)) contains.push(value);
+    if (starts.length === 12) break;
+  }
+  return starts.concat(contains).slice(0, 12);
 }
 
 for (const id of ['brand', 'category', 'seller', 'year', 'month', 'product']) {
@@ -224,10 +302,9 @@ for (const id of ['brand', 'category', 'seller', 'year', 'month', 'product']) {
   select.parentElement.htmlFor = input.id;
   select.style.display = 'none';
   select.after(input);
-  const list = attachSuggestions(input);
   const choices = [...select.options].slice(1);
-  list.replaceChildren(...choices.map(option => option.cloneNode(true)));
   const choiceByText = new Map(choices.map(option => [option.value.toLowerCase(), option.value]));
+  attachSuggestions(input, query => matchingSuggestions(choiceByText, query));
   input.addEventListener('input', () => {
     const query = input.value.trim().toLowerCase();
     const choice = query ? choiceByText.get(query) : '';
@@ -239,27 +316,13 @@ for (const id of ['brand', 'category', 'seller', 'year', 'month', 'product']) {
   filterInputs.set(select, input);
 }
 
-const searchInput = $('search');
-const searchList = attachSuggestions(searchInput);
 const searchValues = new Map();
 for (const row of R) {
   for (const value of [row[6], row[3], row[4], row[1]]) {
     if (value) searchValues.set(value.toLowerCase(), value);
   }
 }
-searchInput.addEventListener('input', () => {
-  const query = searchInput.value.trim().toLowerCase();
-  const starts = [];
-  const contains = [];
-  if (query) {
-    for (const [key, value] of searchValues) {
-      if (key.startsWith(query)) starts.push(value);
-      else if (contains.length < 12 && key.includes(query)) contains.push(value);
-      if (starts.length === 12) break;
-    }
-  }
-  searchList.replaceChildren(...starts.concat(contains).slice(0, 12).map(value => new Option(value, value)));
-});
+attachSuggestions($('search'), query => query ? matchingSuggestions(searchValues, query) : []);
 
 const productMap = new Map(P.map(product => [product.key, product]));
 function quotePaymentText(payment) {
@@ -310,7 +373,6 @@ function update(){
   for (const [select, input] of filterInputs) {
     if (document.activeElement !== input) input.value = select.value;
   }
-  if (!searchInput.value) searchList.replaceChildren();
   if(crmAllBrands){$('sig').classList.toggle('primary',$('brand').value==='Sigenergy');$('all').classList.toggle('primary',!$('brand').value);}$('sig').setAttribute('aria-pressed',String($('brand').value==='Sigenergy'));$('all').setAttribute('aria-pressed',String(!$('brand').value));filtered=R.filter(matches);const summary=receiptSummary(filtered);$('amount').textContent=money(summary.total);$('docCount').textContent=num(summary.count);$('lineCount').textContent=num(filtered.length)+' / '+num(new Set(filtered.map(r=>r[5])).size);$('sellerCount').textContent=num(new Set(filtered.map(r=>r[3])).size);$('warning').textContent='ยอดสุทธิของใบเสร็จที่ชำระครบ (ไม่รวม VAT) • เมื่อกรองสินค้า จะแสดงเฉพาะยอดที่ปันให้สินค้าที่เลือก';viewRows=tab==='lines'?[...filtered].sort((a,b)=>b[2].localeCompare(a[2])||b[1].localeCompare(a[1])):aggregate(filtered,r=>tab==='sellers'?r[3]:r[5]);draw();}
 function draw(){const pages=Math.max(1,Math.ceil(viewRows.length/size));page=Math.min(page,pages);pageItems=viewRows.slice((page-1)*size,page*size);$('viewTitle').textContent={sellers:'ยอดขายตามชื่อเซลส์',products:'สินค้าที่มีรายการขายใน API',lines:'รายการต้นทางในใบเสร็จรับเงิน'}[tab];$('count').textContent=num(viewRows.length)+' '+(tab==='sellers'?'ชื่อเซลส์':tab==='products'?'ชื่อสินค้า':'รายการ');const headers=tab==='sellers'?['ชื่อเซลส์ตามเอกสาร','ใบเสร็จรับเงิน','รายการ / ชื่อสินค้า','ยอด (บาท)','ดูรายการ']:tab==='products'?['ชื่อสินค้า / ชื่อรุ่น','หมวด / ยี่ห้อ','จำนวนแยกหน่วย','ใบเสร็จรับเงิน','ยอด (บาท)','ตรวจชื่อ']:['วันที่ / เลขใบกำกับ','เซลส์ / ลูกค้า','สินค้า / หมวด','จำนวนรวมทั้งใบเสร็จ','ยอดตามรายการ','ก่อน VAT ที่ปันส่วน','สถานะ / ตรวจบิล'];$('head').innerHTML='<tr>'+headers.map(h=>'<th>'+E(h)+'</th>').join('')+'</tr>';
 $('body').innerHTML=pageItems.map((a,index)=>{if(tab==='sellers')return `<tr><td class="name">${E(a.key)}</td><td class="num">${num(a.docs.size)}</td><td class="num">${num(a.lines)} / ${num(a.names.size)}</td><td class="num">${money(a.amount)}</td><td><button class="link" data-seller="${index}">ดูทุกรายการ</button></td></tr>`;if(tab==='products'){const p=productMap.get(a.key);return `<tr><td class="name">${E(p.name)}<div class="muted">${E(p.reason)}</div></td><td>${E([...a.categories].join(" / "))}<br><span class="badge">${E([...a.brands].join(" / "))}</span></td><td class="num">${[...a.units].map(([u,v])=>num(v)+' '+E(u)).join('<br>')}</td><td class="num">${num(a.docs.size)}</td><td class="num">${money(a.amount)}</td><td><button class="link" data-product="${index}">ดูชื่อเดิม / รายการ</button></td></tr>`;}return `<tr><td>${E(a[2])}<br><button class="link" data-doc="${index}">${E(a[1])}</button></td><td class="name">${E(a[3])}<div class="muted">${E(a[4])}</div></td><td class="name">${E(a[6])}<div class="muted">${E(a[8])}</div></td><td class="num">${E(receiptQuantityText(quantityByReceipt.get(a[0])))}</td><td class="num">${money(a[11])}</td><td class="num">${money(a[12])}</td><td><span class="badge ${a[14]?'warn':''}">${E(statusNames[a[13]]||a[13])}</span>${a[18]||a[19]?'<div class="muted">มีปรับท้ายบิล</div>':''}</td></tr>`;}).join('')||'<tr><td colspan="7">ไม่พบรายการที่ตรงตัวกรอง ลองเปลี่ยนหมวดหรือกดล้างตัวกรองทั้งหมด</td></tr>';$('page').textContent=`หน้า ${page} / ${pages} · หน้าละ ${size} รายการ`;$('prev').disabled=page<=1;$('next').disabled=page>=pages;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));$('sig').classList.toggle('primary',$('brand').value==='Sigenergy');}
